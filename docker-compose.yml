@@ -1,0 +1,13 @@
+services:
+  app:
+    build: .
+    image: fixflow-app:latest
+    container_name: fixflow-app
+    ports:
+      - "127.0.0.1:8790:80"
+    volumes:
+      - fixflow-db:/app/database
+    restart: unless-stopped
+
+volumes:
+  fixflow-db:
