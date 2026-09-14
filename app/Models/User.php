@@ -8,6 +8,7 @@ use App\Models\Concerns\Contactable;
 use App\Models\Concerns\HasStatus;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -42,6 +43,8 @@ class User extends Authenticatable
         'password',
         'role',
         'status',
+        'business_id',
+        'email_verified_at',
     ];
 
     /**
@@ -68,6 +71,14 @@ class User extends Authenticatable
     // ACCESSORS ///////////////////////////////////////////////////////////////////////////////////
 
     // RELATIONS ///////////////////////////////////////////////////////////////////////////////////
+
+    /**
+     * Get the business this user belongs to.
+     */
+    public function business(): BelongsTo
+    {
+        return $this->belongsTo(Business::class);
+    }
 
     /**
      * Get the tickets assigned to the user.

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
+use App\Http\Controllers\Auth\BusinessRegistrationController;
 use App\Http\Controllers\Auth\ConfirmablePasswordController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
 use App\Http\Controllers\Auth\EmailVerificationPromptController;
@@ -15,6 +16,12 @@ Route::middleware('guest')->group(function () {
         ->name('register');
 
     Route::post('register', [RegisteredUserController::class, 'store']);
+
+    Route::get('register/business', [BusinessRegistrationController::class, 'create'])
+        ->name('register.business');
+
+    Route::post('register/business', [BusinessRegistrationController::class, 'store'])
+        ->name('register.business.store');
 
     Route::get('login', [AuthenticatedSessionController::class, 'create'])
         ->name('login');

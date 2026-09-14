@@ -6,7 +6,7 @@ services:
     ports:
       - "127.0.0.1:8790:80"
     volumes:
-      - fixflow-db:/app/database
+      - fixflow-db:/data
     restart: unless-stopped
 
 volumes:
