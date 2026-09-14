@@ -30,3 +30,6 @@ _ide_helper_models.php
 
 # build artifacts
 build.log
+
+# agent-local memory (not part of the app)
+.openhands/
