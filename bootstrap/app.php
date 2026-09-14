@@ -14,6 +14,11 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        // Tailscale `serve` (and Docker's bridge) terminate/proxy the request
+        // with X-Forwarded-Proto/Host. Trust them so url()/asset()/@vite emit
+        // correct https:// tailnet URLs (prevents mixed-content blocks).
+        $middleware->trustProxies(at: ['127.0.0.1', '172.16.0.0/12']);
+
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
 
         $middleware->web(append: [

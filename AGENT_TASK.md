@@ -39,6 +39,10 @@
       rows created: business #1 "Acme Electronics Repair", admin user
       owner@acme.example (role=admin, business_id=1); admin login works;
       seeded data intact (108 customers/devices); Tailscale serves page 200.
+- [x] Fixed Tailscale mixed-content: app now trusts the proxy
+      (`bootstrap/app.php` `trustProxies(at: ['127.0.0.1','172.16.0.0/12'])`),
+      so over HTTPS all asset/redirect URLs are https://, and plain local
+      http://127.0.0.1:8790 access still works unchanged.
 
 ## Docker root causes FIXED (critical — read before rebuilding)
 1. `php artisan serve` spawns the built-in web server WITHOUT inheriting Docker
