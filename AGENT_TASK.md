@@ -1,147 +1,135 @@
-# AGENT_TASK.md — FixFlow POS (work repair POS system)
+# AGENT_TASK — Finish FixFlow Repair (full spec, 2026-08-17)
 
-Last updated: 2026-09-15 (after "product sales wired into the repair flow" step)
+## Assignment (authoritative)
+Take FixFlow from its current state to a production-ready repair-shop POS + operations
+platform per the 57-section spec (customer intake → device ID → ticket → condition docs →
+repair selection → estimate → approval (pricing snapshot) → part reserve/order → repair →
+testing → invoice → payment → receipt → close; then suppliers, search, portal, automations,
+reporting, Device Bridge, RBAC/audit, multi-location, API/webhooks).
+EXISTING app: audit first, preserve working functionality + visual identity, incremental
+improvement. No dead buttons, no fake data, no frontend-only features, server-side
+validation + permissions. Tenant isolation is critical.
 
-## What this app is
-Device-repair POS built from a GitHub base (Laravel 12 + Inertia + Vue 3 + TS + SQLite in Docker).
-The business does **both repair and sales** of electronics / odd items, so the app must support
-a sellable catalog, not just repairs. Data is **business-scoped** (multi-tenant): every core
-row has `business_id`; users without a business see **no data** (secure default).
+## Prior completed state (verified, branch `docker-preview`)
+- Laravel 12 / Inertia / Vue3 / TS / Tailwind(shadcn-style) / SQLite / Docker, PHP 8.4
+- 8 business-scoped core models + `BelongsToBusiness` trait (business_id nullable,
+  forBusiness() scope, auto-stamp). Business = tenant unit.
+- Catalog: Category + Product (active/lowStock scopes). Dashboard, Products (index/create),
+  Tickets (index/show), product-sales lines on orders (OrderObserver stock consume/restore),
+  invoices aggregate billable orders/tasks.
+- Demo seed: biz "FixFlow Demo Shop" (admin@demo.com / password) + "Second Bird"
+  (manager@secondbird.test / password) proving tenant isolation. users=19, businesses=2,
+  products=86, tickets=121, customers=111, invoices=118, transactions=61.
+- Test env fixed & green: 329 passed / 0 failed / 15 design-skips (1250 assertions).
+  DO NOT bake ENV back into Dockerfile (reintroduces live-DB shadowing).
+- reka-ui Select components exist (dark mode); use them for dropdowns, not native select.
+- lucide-vue-next ^0.468.0. No `Table`/`Textarea` UI components (plain markup).
+- UI: AppLayout + AppSidebar (Dashboard, Tickets, Products, Settings, Auth).
 
-## Current assignment (CORE FUNDAMENTALS) — DONE
-Goal: "build core fundamentals, make everything flexible/easy to add to or change later."
+## Environment / workflow
+- Repo callal241/fixflow-app, local `C:\Users\User\OneDrive\Documents\work repair pos system`
+  on `docker-preview` (pushed). Work in this dir; push on request.
+- Container `fixflow-app`: app /app, DB volume `workrepairpossystem_fixflow-db`:/data,
+  HTTP http://127.0.0.1:8790 (port 80 in container).
+- Tests: `docker exec fixflow-app sh -c "cd /app && php artisan test --compact"`
+- Rebuild: `docker compose build` (Start-Job → C:\fixflow-src\buildN.log; poll) →
+  `docker rm -f fixflow-app` → `docker compose up -d` → verify. Compose warnings to stderr
+  are harmless (NativeCommandError).
+- PowerShell: no heredocs (file_editor + docker cp), no &&, chain with ;, timeout<=120s,
+  empty output = finished. UNIX grep/find → `wsl -e bash -lc '...'` on /mnt/c/... paths.
+- HTTP testing: curl INSIDE container (127.0.0.1:80); XSRF via cookie from /login,
+  send as X-XSRF-TOKEN (URL-decoded); re-read cookie after login (rotates).
+- Long commands: Start-Job + log file + poll. Never block > ~60s.
 
-### Completed + verified in Docker (commit 39bf8a8, branch `docker-preview`)
-1. **Business scoping** — `BelongsToBusiness` trait (app/Models/Concerns/) on all 8 core models
-   (Customer, Device, Ticket, Task, Order, Invoice, Transaction, Adjustment). Trait provides
-   `business()` relation + `forBusiness()` scope + auto-stamp on create. User without a
-   business → empty result set (no unscoped leak).
-2. **Catalog (sales side)** — `Category` (nested via `parent_id`) + `Product` models with
-   `active()` / `lowStock()` scopes, stock/reorder tracking, category relation.
-3. **Seeders** — `BusinessSeeder` (demo business + a second business to prove isolation),
-   `CatalogSeeder` (category tree + ~68 products). ALL demo seeders stamp `business_id`
-   by inheriting from the parent row (customer→device→ticket→…→transaction).
-4. **Dashboard** — `DashboardController` + `Dashboard.vue`: scoped stats (open tickets,
-   ready devices, customers, low-stock products), recent tickets, low-stock list.
-5. **Products** — `ProductController` + `Products/Index.vue` + `Products/Create.vue`.
-   `store()` auto-stamps `business_id`. "Products" item in AppSidebar.
+## Implementation map — FILL DURING AUDIT (Milestone 0)
+Statuses: WORKING / PARTIAL / BROKEN / PLACEHOLDER / MISSING
+Sections 1-57 of spec. Milestone 1 = full repair lifecycle with real persistent data.
 
-### Two bugs found + fixed during verification
-- `Ticket` model was **missing the `BelongsToBusiness` trait** → `forBusiness()` undefined →
-  dashboard 500. (All other 7 core models had it; Ticket slipped through.)
-- `User::business()` return type was `Eloquent\BelongsTo` (abstract base) but the call returns
-  `Eloquent\Relations\BelongsTo` → TypeError. Fixed to `Relations\BelongsTo`.
+## Checklist
+- [x] 0-Audit: backend (controllers/models/migrations/routes/middleware)
+- [x] 0-Audit: frontend (pages/components/stores/routes/sidebar)
+- [x] 0-Audit: DB schema + enums + seeders
+- [x] 0-Map: classify all spec sections (recorded in "Audit findings" below)
+- [x] Phase A: schema — ticket_number (FF-xxxxx auto + backfill), device fields
+      (model_number/imei/color/storage/carrier), ticket internal_notes + intake_type.
+      Verified: fresh DB chain + backfill (121 tickets numbered), live DB reseeded,
+      suite green (330 passed / 0 failed / 15 skips).
+- [ ] 1a: Customers (create/edit/list/detail, business accounts, multiple devices/contacts)
+- [ ] 1b: Devices (manufacturer/model/serial/IMEI/etc., device catalog hierarchy)
+- [ ] 1c: Ticket intake (number, fields, photos, notes, authorization, status)
+- [ ] 1d: Ticket workflow (status transitions, notes/timeline, tasks/repairs, parts)
+- [ ] 1e: Estimates/quotes (options, approve, pricing snapshot)
+- [ ] 1f: Inventory (stock, reserved/available, reorder, receiving)
+- [ ] 1g: POS/checkout (payments, deposits, refunds, receipts)
+- [ ] 1h: Invoices (from ticket, pay, status)
+- [ ] 1i: Testing/checklists (pre/post repair)
+- [ ] 1j: End-to-end verification with real data + tests
+- [ ] 2: Global search + command palette (Ctrl/Cmd+K)
+- [ ] 3: Supplier provider architecture + MobileSentrix/PhoneLCD/iFixit
+- [ ] 4: Parts from ticket (Find Parts), purchase orders, receiving
+- [ ] 5: Communications + customer portal
+- [ ] 6: Reporting + dashboards (technician/store)
+- [ ] 7: Automations, notifications
+- [ ] 8: RBAC + audit log + passcode sensitivity
+- [ ] 9: Multi-location, appointments, mail-in
+- [ ] 10: Device Bridge
+- [ ] 11: API/webhooks, accounting adapters
+- [ ] 12: Full end-to-end QA
 
-## Current assignment (PRODUCT SALES → REPAIR FLOW) — DONE
-Goal: "wire product sales into the repair flow / ticket workflow" so a ticket can carry
-sold products alongside its repair tasks.
+## Current step
+Phase B: Customers CRUD (backend + routes + pages). Pattern source: ProductController +
+Products/Index+Create. Sidebar: add Customers, then Devices.
 
-### Completed + verified in Docker (branch `docker-preview`)
-1. **Schema** — migration `2026_09_15_000001_add_product_sales_to_orders.php` adds
-   `product_id` (nullable FK) + `price` to `orders`, so an order can be a catalog-sale
-   line item. `Order` fillable extended; `product()` relation added.
-2. **Stock handling** — `OrderObserver` (created/updated/deleted) consumes product stock on
-   sale, restores it on quantity change / cancel / delete, and clamps at zero so stock never
-   goes negative. Delete of an already-cancelled order does NOT double-restore.
-3. **Ticket UI + API** — `TicketController` (index/show/storeOrder/destroyOrder) + routes
-   `GET tickets`, `GET tickets/{ticket}`, `POST tickets/{ticket}/orders`,
-   `DELETE tickets/{ticket}/orders/{order}`. Pages `Tickets/Index.vue` + `Tickets/Show.vue`
-   (list products, add a product line to a ticket, remove it). "Tickets" added to AppSidebar.
-4. **Invoice wiring** — a product line flows into `Invoice.order_total` (billable orders) →
-   `subtotal`, via the existing `fillOrderTotal()`; no parallel sales table.
-5. **Second tenant made real** — `SecondBusinessSeeder` gives the second demo business a
-   manager login (`manager@secondbird.test` / password) + scoped customers/devices/tickets
-   and a small catalog, so multi-tenancy is demonstrable in the app, not just in tests.
-   Wired into `DatabaseSeeder` after `CatalogSeeder`.
+## Audit findings (2026-08-17, verified against repo + live DB)
 
-### Bugs found + fixed during verification
-- `Order` `$fillable` was missing `ticket_id`/`business_id` → `MassAssignmentException` on
-  the first HTTP sale. Fixed by creating through `$ticket->orders()->create()` (relation sets
-  `ticket_id`; `business_id` is stamped by the `BelongsToBusiness` trait).
-- `OrderObserver::updated()` cast the original `status` with `(string)`, but Laravel hands it
-  an **enum object** → fatal during `OrderSeeder` (which sets status to Cancelled/Shipped).
-  Fixed with an `asStatus()` normalizer (handles enum or string). This was a real runtime bug,
-  not just a seed issue.
+### BACKEND — WORKING (solid foundation, 329 tests pin the contract)
+- 12 models, all business-scoped via BelongsToBusiness (business_id, forBusiness scope,
+  auto-stamp). Enums w/ HasNext + HasProgress (pending/complete cases): TicketStatus
+  (new/in_progress/on_hold/resolved/closed), TaskType (10 types), TaskStatus, OrderStatus,
+  DeviceStatus (received/on_hold/under_repair/ready/delivered), DeviceType, InvoiceStatus
+  (draft/issued/sent/paid/refunded/cancelled), Priority (low..urgent), UserRole
+  (admin/manager/technician), TransactionMethod/Type, AdjustmentType/Reason.
+- Observer engine (WORKING, tested): TaskObserver + OrderObserver → invoice totals;
+  InvoiceObserver → % adjustments; TransactionObserver → paid/refunded + auto status;
+  Ticket/Device/Adjustment → rollup counts. Invoice computed props: subtotal, net_amount,
+  balance, getComputedStatus.
+- Controllers/routes EXIST: Dashboard, Product (index/create/store), Ticket (index/show),
+  Order (store/destroy), full Auth suite, Settings (profile/password).
+- Factories + seeders for ALL models (states: forCustomer/forDevice/forTicket/billable/…).
+- Workflow feature tests define E2E contract: customer→device→ticket→invoice→tasks→
+  orders→adjustment→payment→paid.
 
-## Verified (proof, not claims) — run inside container `fixflow-app`
-- `php -l` passes on all changed PHP files.
-- Fresh seed: 108 customers/devices (biz#1), 68 products, 11 categories, **0 NULL business_id**.
-- HTTP login admin@demo.com/password → /dashboard **200**; payload: business="FixFlow Demo Shop",
-  stats open_tickets=118 customers=108 low_stock_products; 6 recent tickets, 6 low-stock;
-  **zero** "Second Bird" (second business) data leaked into the demo dashboard.
-- `POST /products` (unique SKU) → 302; row created with `business_id=1` (auto-stamp confirmed).
-- Anonymous `GET /dashboard` → 302 /login (isolation holds).
+### FRONTEND — WORKING (good kit, thin app layer)
+- Full shadcn/reka-ui kit: Button, Card, Input, Label, Select, Checkbox, Dialog,
+  DropdownMenu, Sheet, Tooltip, Avatar, Breadcrumb, Sidebar, Separator, Skeleton,
+  Collapsible, NavigationMenu. AppLayout + AppSidebar + breadcrumbs + Heading.
+- Inertia 2 + Ziggy (route() in Vue) + useForm. Tailwind 4, dark mode. lucide icons.
+- Pages EXIST: Dashboard, Welcome, 7 auth, Products/Index+Create, Tickets/Index+Show,
+  Settings x3. Sidebar: Dashboard, Products, Tickets.
 
-### Product-sales verification (fresh seed, all 16 HTTP/model checks green)
-- Fresh seed completes cleanly (incl. `OrderSeeder` status changes + new `SecondBusinessSeeder`).
-- Sale: `POST tickets/{t}/orders` (product, qty 2) → 302; product stock 20→18; invoice
-  `order_total` = base + (price×qty) and equals the ticket's billable order sum.
-- Oversell (qty > stock) → validation error, stock unchanged.
-- Cancel (status→cancelled) → stock restored; delete of a cancelled order does NOT
-  double-restore (stock unchanged on delete).
-- `DELETE tickets/{t}/orders/{o}` (non-cancelled) → 302, stock restored, invoice stable.
-- Isolation: biz1 admin → biz2 ticket **403**; biz2 manager → biz1 ticket **403**;
-  biz2 sees only its own ticket (200). Second tenant login works.
+### THE GAP — application layer (Milestone 1 blockers)
+- MISSING: Customers CRUD (no controller/routes/pages).
+- MISSING: Devices CRUD.
+- MISSING: Ticket create (intake) + update (status/assignee/priority/due/notes).
+- MISSING: Tasks UI (model+enum+observer all exist; zero UI/routes).
+- MISSING: Invoice UI (create-from-ticket, adjustments, payments, refunds, receipt).
+- MISSING: free-form parts (orders without product_id) in UI (product sale only).
+- MISSING: ticket number (spec §1) — tickets have only autoincrement id.
+- MISSING: device detail fields (imei/color/storage/carrier — spec §1/§2).
+- MISSING: internal vs customer-visible notes.
+- MISSING (later milestones): global search, RBAC enforcement, audit log, photos,
+  labels/QR, estimates-as-portal, suppliers, comms, automations, reports, device bridge,
+  multi-location, API/webhooks.
 
-### Native select dropdown theming — FIXED (final: themed reka-ui Select, commit 81b16e2)
-- **Bug:** dropdown *list* background stayed white with unreadable text in dark mode.
-  First attempt (`color-scheme: light/dark` on `:root`/`.dark`, commit 4ee8662) was NOT
-  sufficient per user — the native `<select>` option list still ignored it.
-- **Final fix:** replaced the native `<select>` controls with a shadcn-style reka-ui
-  Select component set under `resources/js/components/ui/select/`
-  (`Select`, `SelectTrigger`, `SelectValue`, `SelectContent`, `SelectItem`,
-  `SelectItemText` + `index.ts` barrel), using the already-installed `reka-ui` (v2.3.0).
-  The list is a CSS-controlled popover: `bg-popover text-popover-foreground`, so in dark
-  mode it renders `#0a0a0a` background with `hsl(0 0% 98%)` text (verified in the compiled
-  asset `app-BVdya15w.css`: `--popover:#0a0a0a`, `--popover-foreground:0 0% 98%`,
-  `--accent:#262626`; light theme stays `#fff`).
-- **Pages converted (all native `<select>` in the app are gone):**
-  - `Tickets/Show.vue` — product picker (`form.product_id`, `number | null`; reka-ui
-    `AcceptableValue` includes `null`, so `v-model` binds directly).
-  - `Products/Create.vue` — category (keeps selectable "Uncategorised" = null value).
-  - `auth/RegisterBusiness.vue` — currency.
-- **Verified:** clean `vite build` in Docker; container recreated (DB volume preserved);
-  new CSS hash `app-BVdya15w.css` served; built JS bundle contains the new
-  `select-content` components; `GET /login` → 200.
-- Note: `v-model.number` is not needed — product/category ids bind as numbers directly.
+### DECISIONS (documented per spec §55)
+- Keep stack (Laravel/Inertia/Vue/SQLite/Docker) — spec §47. Build application layer on
+  existing models/observers; do NOT rewrite engine.
+- Ticket number: `FF-` + 5-digit zero-padded global id (set on creating if empty) —
+  stable, searchable, tenant-unique.
+- Estimate = Invoice(Draft) created from ticket; approval = invoice sent + task approvals.
+  (Matches existing architecture; InvoiceStatus already models the lifecycle.)
+- v1 device fields: imei, color, storage, carrier (rest later). Photos/QR/suppliers
+  post-milestone.
+- Roles: keep enum; add server-side role guards on sensitive routes (admin settings)
+  when building; full RBAC matrix post-milestone.
 
-## How to build/run (Docker, Windows PowerShell)
-- **Mirror** the repo to `C:\fixflow-src` (robocopy, exclude node_modules/.git/.openhands) because
-  OneDrive placeholder files break `docker build` context reads. Build from the mirror:
-  `docker build -t fixflow-app:latest .` (in C:\fixflow-src).
-- Recreate container:
-  `docker run -d --name fixflow-app -p 127.0.0.1:8790:80 -v workrepairpossystem_fixflow-db:/data --restart unless-stopped fixflow-app:latest`
-- Fresh seed: `docker volume rm workrepairpossystem_fixflow-db` first (else old unscoped rows persist).
-- App URL: http://127.0.0.1:8790  ·  login admin@demo.com / password
-- Lint a file in the container: `docker run --rm --entrypoint php -v C:\fixflow-src:/app -w /app fixflow-app:latest -l /app/<path>`
-- HTTP tests: curl **inside the container** against `127.0.0.1:80` (8790 is the host mapping).
-  For POSTs, fetch the XSRF-TOKEN cookie from /login and send it as an `X-XSRF-TOKEN` header
-  (URL-decoded). **Re-read the cookie after login** (it rotates).
-- PowerShell gotchas that already cost time: no `grep`/`find`/`sed` in the host shell; use
-  `wsl -e bash -lc '...'` or a script file for anything UNIX-shaped; multi-line `php -r` and
-  nested quotes get mangled by PowerShell — put PHP in a `.php` file and `docker cp` it in;
-  `timeout` is in seconds (max 120); empty output = finished, not a hang.
-
-## Pending / next (not started)
-- Product **edit/update** page (only create exists).
-- Ticket **status/notes** workflow (tickets currently list + show; no status transitions yet).
-- A **cancel** action for product orders in the UI (stock-restore on cancel is implemented in
-  the observer, but there is no HTTP route for it yet — only create/delete are exposed).
-- Category management UI (categories are only seeded + shown as a form select).
-- Inventory receiving/purchase orders (stock is currently set by hand).
-- Reports (sales, repairs, revenue per business).
-- Push `docker-preview` to GitHub / open PR (NOT done — user has not asked).
-- Frontend typecheck (vue-tsc) — no local node_modules; would need to run in a node container.
-
-## Conventions
-- Models: `HasFactory` + `BelongsToBusiness` + existing concerns (`HasStatus`, etc.).
-- Factories: `fake()` + states.
-- Seeders reference the demo business via `BusinessSeeder::DEMO_BUSINESS_NAME`.
-- Vue pages: `AppLayout`, `Heading`, `InputError`, `useForm`, `router`, `Head`.
-- **No** `Table` or `Textarea` UI components exist — use plain markup/`<textarea>`.
-- A themed reka-ui **Select** component set exists at `@/components/ui/select`
-  (`Select, SelectTrigger, SelectValue, SelectContent, SelectItem, SelectItemText`).
-  Use it for all dropdowns (dark mode friendly); do not reintroduce native `<select>`.
-  `v-model` accepts `number | null` directly (reka-ui `AcceptableValue` includes `null`).
-- lucide-vue-next `^0.468.0`; verified icon names: TriangleAlert, AlertTriangle, Wrench,
-  Package, Users, Plus.

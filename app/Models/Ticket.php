@@ -51,8 +51,11 @@ class Ticket extends Model
      * @var array<int, string>
      */
     protected $fillable = [
+        'ticket_number',
         'title',
         'description',
+        'internal_notes',
+        'intake_type',
         'priority',
         'status',
         'due_date',

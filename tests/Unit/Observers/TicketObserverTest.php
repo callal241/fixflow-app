@@ -39,6 +39,25 @@ beforeEach(function () {
 it('updates device ticket-counts on creation', function () {
     // Arrange
     $ticket = $this->mockTicket(syncDevice: true);
+    $ticket->shouldReceive('getAttribute')->once()->with('ticket_number')->andReturn('FF-00001');
+
+    // Act
+    $this->observer->created($ticket);
+});
+
+it('assigns a ticket number on creation when missing', function () {
+    // Arrange
+    $device = mock(Device::class);
+    $device->shouldReceive('fillTicketCounts')->once()->andReturnSelf();
+    $device->shouldReceive('save')->once()->andReturn(true);
+
+    $ticket = mock(Ticket::class);
+    $ticket->shouldReceive('getAttribute')->once()->with('ticket_number')->andReturn(null);
+    $ticket->shouldReceive('getAttribute')->once()->with('id')->andReturn(42);
+    $ticket->shouldReceive('forceFill')->once()->with(['ticket_number' => 'FF-00042'])->andReturnSelf();
+    $ticket->shouldReceive('saveQuietly')->once()->andReturn(true);
+    $ticket->shouldReceive('load')->once()->with('device')->andReturnSelf();
+    $ticket->shouldReceive('getAttribute')->once()->with('device')->andReturn($device);
 
     // Act
     $this->observer->created($ticket);

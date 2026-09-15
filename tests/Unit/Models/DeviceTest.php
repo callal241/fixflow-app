@@ -39,8 +39,13 @@ testModelStructure(
     ],
     fillables: [
         'model',
+        'model_number',
         'brand',
         'serial_number',
+        'imei',
+        'color',
+        'storage',
+        'carrier',
         'purchase_date',
         'warranty_expire_date',
         'type',

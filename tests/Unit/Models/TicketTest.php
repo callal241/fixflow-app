@@ -45,8 +45,11 @@ testModelStructure(
         'total_orders_count' => 0,
     ],
     fillables: [
+        'ticket_number',
         'title',
         'description',
+        'internal_notes',
+        'intake_type',
         'priority',
         'status',
         'due_date',
