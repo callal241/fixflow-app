@@ -5,6 +5,7 @@ import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectItemText, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import { type BreadcrumbItem } from '@/types';
 
@@ -70,16 +71,17 @@ const submit = () => {
                 <div class="grid gap-4 sm:grid-cols-2">
                     <div class="grid gap-2">
                         <Label for="category_id">Category</Label>
-                        <select
-                            id="category_id"
-                            v-model.number="form.category_id"
-                            class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                        >
-                            <option :value="null">Uncategorised</option>
-                            <option v-for="c in categories" :key="c.id" :value="c.id">
-                                {{ c.name }}
-                            </option>
-                        </select>
+                        <Select v-model="form.category_id">
+                            <SelectTrigger id="category_id" class="w-full" :class="{ 'border-destructive': form.errors.category_id }">
+                                <SelectValue placeholder="Uncategorised" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem :value="null">Uncategorised</SelectItem>
+                                <SelectItem v-for="c in categories" :key="c.id" :value="c.id">
+                                    <SelectItemText>{{ c.name }}</SelectItemText>
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
                         <InputError :message="form.errors.category_id" />
                     </div>
 

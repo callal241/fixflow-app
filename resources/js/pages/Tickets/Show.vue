@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectItemText, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Package, Plus, Trash2, ShoppingCart } from 'lucide-vue-next';
 import { Head, Link, useForm, router, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
@@ -159,16 +160,16 @@ const pretty = (s: string) => s.replace(/_/g, ' ');
                             <div class="grid gap-3 sm:grid-cols-[1fr_6rem_4rem]">
                                 <div class="flex flex-col gap-1">
                                     <Label for="product_id">Product</Label>
-                                    <select
-                                        id="product_id"
-                                        v-model="form.product_id"
-                                        class="h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                    >
-                                        <option :value="null" disabled>Choose a product…</option>
-                                        <option v-for="p in products" :key="p.id" :value="p.id">
-                                            {{ p.name }} — {{ currency(p.price) }} ({{ p.stock }} in stock)
-                                        </option>
-                                    </select>
+                                    <Select v-model="form.product_id">
+                                        <SelectTrigger id="product_id" class="w-full" :class="{ 'border-destructive': form.errors.product_id }">
+                                            <SelectValue placeholder="Choose a product…" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem v-for="p in products" :key="p.id" :value="p.id">
+                                                <SelectItemText>{{ p.name }} — {{ currency(p.price) }} ({{ p.stock }} in stock)</SelectItemText>
+                                            </SelectItem>
+                                        </SelectContent>
+                                    </Select>
                                     <span v-if="form.errors.product_id" class="text-xs text-red-600">
                                         {{ form.errors.product_id }}
                                     </span>

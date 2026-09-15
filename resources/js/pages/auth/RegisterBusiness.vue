@@ -4,6 +4,7 @@ import TextLink from '@/components/TextLink.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectItemText, SelectTrigger, SelectValue } from '@/components/ui/select';
 import AuthBase from '@/layouts/AuthLayout.vue';
 import { Head, useForm } from '@inertiajs/vue3';
 import { ArrowLeft, ArrowRight, Building2, Check, LoaderCircle, UserRound } from 'lucide-vue-next';
@@ -184,9 +185,16 @@ const reviewRows = computed(() => [
                     </div>
                     <div class="grid gap-2">
                         <Label for="currency">Currency</Label>
-                        <select id="currency" v-model="form.currency" :class="selectClasses">
-                            <option v-for="c in props.currencies" :key="c" :value="c">{{ c }}</option>
-                        </select>
+                        <Select v-model="form.currency">
+                            <SelectTrigger id="currency" class="w-full">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem v-for="c in props.currencies" :key="c" :value="c">
+                                    <SelectItemText>{{ c }}</SelectItemText>
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
                         <InputError :message="form.errors.currency" />
                     </div>
                     <div class="grid gap-2">
