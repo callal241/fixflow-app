@@ -6,6 +6,7 @@ use App\Casts\Progress;
 use App\Enums\DeviceStatus;
 use App\Enums\DeviceType;
 use App\Enums\TicketStatus;
+use App\Models\Concerns\BelongsToBusiness;
 use App\Models\Concerns\HasProgress;
 use App\Models\Concerns\HasStatus;
 use App\Models\Concerns\HasType;
@@ -26,7 +27,7 @@ class Device extends Model
      * @use HasStatus<\App\Enums\DeviceStatus>
      * @use HasType<\App\Enums\DeviceType>
      */
-    use HasFactory, HasProgress, HasStatus, HasType, HasWarranty;
+    use BelongsToBusiness, HasFactory, HasProgress, HasStatus, HasType, HasWarranty;
 
     /**
      * The model's default values for attributes.

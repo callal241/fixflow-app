@@ -7,6 +7,7 @@ use App\Enums\OrderStatus;
 use App\Enums\TaskStatus;
 use App\Enums\TicketStatus;
 use App\Models\Concerns\Assignable;
+use App\Models\Concerns\BelongsToBusiness;
 use App\Models\Concerns\HasDueDate;
 use App\Models\Concerns\HasPriority;
 use App\Models\Concerns\HasProgress;
@@ -27,7 +28,7 @@ class Ticket extends Model
      * @use HasFactory<\Database\Factories\TicketFactory>
      * @use HasStatus<\App\Enums\TicketStatus>
      */
-    use Assignable, HasDueDate, HasFactory, HasPriority, HasProgress, HasStatus;
+    use Assignable, BelongsToBusiness, HasDueDate, HasFactory, HasPriority, HasProgress, HasStatus;
 
     /**
      * The model's default values for attributes.

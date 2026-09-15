@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Casts\Progress;
 use App\Enums\DeviceStatus;
+use App\Models\Concerns\BelongsToBusiness;
 use App\Models\Concerns\Contactable;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -16,7 +17,7 @@ class Customer extends Model
     /**
      * @use HasFactory<\Database\Factories\CustomerFactory>
      */
-    use Contactable, HasFactory;
+    use BelongsToBusiness, Contactable, HasFactory;
 
     /**
      * The model's default values for attributes.

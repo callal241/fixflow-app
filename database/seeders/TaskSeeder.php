@@ -11,14 +11,15 @@ class TaskSeeder extends Seeder
 {
     public function run(): void
     {
-        // Create a random number of tasks for each ticket.
+        // Create a random number of tasks for each ticket (tasks inherit the ticket's business).
         Ticket::all()->each(function (Ticket $ticket) {
+            $businessId = $ticket->business_id;
 
             // Create normal task
-            Task::factory()->forTicket($ticket)->create();
+            Task::factory()->forTicket($ticket)->create(['business_id' => $businessId]);
 
             // Create a task that needs approval
-            Task::factory()->forTicket($ticket)->unapproved()->create();
+            Task::factory()->forTicket($ticket)->unapproved()->create(['business_id' => $businessId]);
         });
 
         // Mark some tasks as non-billable

@@ -15,9 +15,9 @@ class TicketSeeder extends Seeder
      */
     public function run(): void
     {
-        // Create tickets for all devices
+        // Create tickets for all devices (tickets inherit the device's business)
         Device::all()->each(function (Device $device) {
-            Ticket::factory()->forDevice($device)->create();
+            Ticket::factory()->forDevice($device)->create(['business_id' => $device->business_id]);
         });
 
         // Get all active users
@@ -26,7 +26,7 @@ class TicketSeeder extends Seeder
         // Create tickets for random devices assigned to random users
         // This ensures that each device has tickets assigned to different users
         Device::all()->random(10)->each(function (Device $device) use ($users) {
-            Ticket::factory()->forDevice($device)->forAssignee($users->random())->create();
+            Ticket::factory()->forDevice($device)->forAssignee($users->random())->create(['business_id' => $device->business_id]);
         });
     }
 }

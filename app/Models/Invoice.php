@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\AdjustmentType;
 use App\Enums\InvoiceStatus;
 use App\Enums\TransactionType;
+use App\Models\Concerns\BelongsToBusiness;
 use App\Models\Concerns\HasDueDate;
 use App\Models\Concerns\HasProgress;
 use App\Models\Concerns\HasStatus;
@@ -23,7 +24,7 @@ class Invoice extends Model
      * @use HasFactory<\Database\Factories\InvoiceFactory>
      * @use HasStatus<\App\Enums\InvoiceStatus>
      */
-    use HasDueDate, HasFactory, HasProgress, HasStatus;
+    use BelongsToBusiness, HasDueDate, HasFactory, HasProgress, HasStatus;
 
     /**
      * The model's default values for attributes.

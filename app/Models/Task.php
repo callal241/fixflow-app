@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\TaskStatus;
 use App\Enums\TaskType;
+use App\Models\Concerns\BelongsToBusiness;
 use App\Models\Concerns\Billable;
 use App\Models\Concerns\HasApproval;
 use App\Models\Concerns\HasProgress;
@@ -22,7 +23,7 @@ class Task extends Model
      * @use HasStatus<\App\Enums\TaskStatus>
      * @use HasType<\App\Enums\TaskType>
      */
-    use Billable, HasApproval, HasFactory, HasProgress, HasStatus, HasType;
+    use BelongsToBusiness, Billable, HasApproval, HasFactory, HasProgress, HasStatus, HasType;
 
     /**
      * The model's default values for attributes.

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\TransactionMethod;
 use App\Enums\TransactionType;
+use App\Models\Concerns\BelongsToBusiness;
 use App\Models\Concerns\HasType;
 use App\Observers\TransactionObserver;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
@@ -19,7 +20,7 @@ class Transaction extends Model
      * @use HasFactory<\Database\Factories\TransactionFactory>
      * @use HasType<\App\Enums\TransactionType>
      */
-    use HasFactory, HasType;
+    use BelongsToBusiness, HasFactory, HasType;
 
     /**
      * The model's default values for attributes.

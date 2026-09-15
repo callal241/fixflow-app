@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\OrderStatus;
+use App\Models\Concerns\BelongsToBusiness;
 use App\Models\Concerns\Billable;
 use App\Models\Concerns\HasApproval;
 use App\Models\Concerns\HasProgress;
@@ -19,7 +20,7 @@ class Order extends Model
      * @use HasFactory<\Database\Factories\OrderFactory>
      * @use HasStatus<\App\Enums\OrderStatus>
      */
-    use Billable, HasApproval, HasFactory, HasProgress, HasStatus;
+    use BelongsToBusiness, Billable, HasApproval, HasFactory, HasProgress, HasStatus;
 
     /**
      * The model's default values for attributes.

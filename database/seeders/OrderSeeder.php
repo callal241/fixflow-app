@@ -11,13 +11,15 @@ class OrderSeeder extends Seeder
 {
     public function run(): void
     {
-        // Create a random number of orders for each ticket.
+        // Create a random number of orders for each ticket (orders inherit the ticket's business).
         Ticket::all()->random(30)->each(function (Ticket $ticket) {
+            $businessId = $ticket->business_id;
+
             // Create normal order
-            Order::factory()->forTicket($ticket)->create();
+            Order::factory()->forTicket($ticket)->create(['business_id' => $businessId]);
 
             // Create an order that needs approval
-            Order::factory()->forTicket($ticket)->unapproved()->create();
+            Order::factory()->forTicket($ticket)->unapproved()->create(['business_id' => $businessId]);
         });
 
         // Mark some orders as non-billable

@@ -14,9 +14,10 @@ class TransactionSeeder extends Seeder
      */
     public function run(): void
     {
-        // Create transactions for paid invoices
+        // Create transactions for paid invoices (transactions inherit the invoice's business)
         Invoice::ofStatus(InvoiceStatus::Paid)->each(function (Invoice $invoice) {
             Transaction::factory()->forInvoice($invoice)->create([
+                'business_id' => $invoice->business_id,
                 'amount' => $invoice->paid_amount,
             ]);
         });
@@ -24,6 +25,7 @@ class TransactionSeeder extends Seeder
         // Create transactions for refunded invoices
         Invoice::ofStatus(InvoiceStatus::Refunded)->each(function (Invoice $invoice) {
             Transaction::factory()->forInvoice($invoice)->create([
+                'business_id' => $invoice->business_id,
                 'amount' => $invoice->refunded_amount,
             ]);
         });

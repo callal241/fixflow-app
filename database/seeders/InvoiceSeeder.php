@@ -13,17 +13,18 @@ class InvoiceSeeder extends Seeder
      */
     public function run(): void
     {
-        // Create invoices for each ticket
+        // Create invoices for each ticket (invoices inherit the ticket's business)
         Ticket::all()->each(function ($ticket) {
             // Create an invoice factory for the ticket
             $invoiceFactory = Invoice::factory()->forTicket($ticket);
+            $businessId = $ticket->business_id;
 
             // Create an invoice with various states
             match (rand(1, 4)) {
-                1 => $invoiceFactory->create(),
-                2 => $invoiceFactory->paid()->create(),
-                3 => $invoiceFactory->refunded()->create(),
-                4 => $invoiceFactory->overdue()->create(),
+                1 => $invoiceFactory->create(['business_id' => $businessId]),
+                2 => $invoiceFactory->paid()->create(['business_id' => $businessId]),
+                3 => $invoiceFactory->refunded()->create(['business_id' => $businessId]),
+                4 => $invoiceFactory->overdue()->create(['business_id' => $businessId]),
             };
         });
     }
