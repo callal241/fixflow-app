@@ -83,6 +83,17 @@ sold products alongside its repair tasks.
 - Isolation: biz1 admin → biz2 ticket **403**; biz2 manager → biz1 ticket **403**;
   biz2 sees only its own ticket (200). Second tenant login works.
 
+### Native select dropdown theming (fix verified)
+- **Bug:** `<option>` text in the product/category dropdowns was white-on-white in dark
+  mode. Root cause: theme is shadcn light/dark (default `system`) but `color-scheme` was
+  never set, so the browser painted the native dropdown *list* in the system light scheme
+  while the option text inherited the dark `--foreground` (white).
+- **Fix:** `resources/css/app.css` now sets `color-scheme: light` on `:root` and
+  `color-scheme: dark` on `.dark`, so native controls (select lists, scrollbars) paint to
+  match the active theme. Fixes every `<select>` app-wide, both themes.
+- **Verified:** rebuilt image; compiled asset `app-CCuyG9zd.css` contains
+  `color-scheme:light` + `color-scheme:dark`, and the running login page serves that hash.
+
 ## How to build/run (Docker, Windows PowerShell)
 - **Mirror** the repo to `C:\fixflow-src` (robocopy, exclude node_modules/.git/.openhands) because
   OneDrive placeholder files break `docker build` context reads. Build from the mirror:

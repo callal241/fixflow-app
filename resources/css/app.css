@@ -85,6 +85,9 @@
 }
 
 :root {
+    /* Paint native form controls (select dropdowns, scrollbars) to match light. */
+    color-scheme: light;
+
     --background: hsl(0 0% 100%);
     --foreground: hsl(0 0% 3.9%);
     --card: hsl(0 0% 100%);
@@ -122,6 +125,9 @@
 }
 
 .dark {
+    /* Match the light scheme override so the native select list paints dark. */
+    color-scheme: dark;
+
     --background: hsl(0 0% 3.9%);
     --foreground: hsl(0 0% 98%);
     --card: hsl(0 0% 3.9%);
