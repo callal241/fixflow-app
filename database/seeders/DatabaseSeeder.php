@@ -23,6 +23,7 @@ class DatabaseSeeder extends Seeder
             AdjustmentSeeder::class,
             TransactionSeeder::class,
             CatalogSeeder::class,
+            SecondBusinessSeeder::class,
         ]);
     }
 }

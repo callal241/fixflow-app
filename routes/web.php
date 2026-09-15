@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\TicketController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -17,6 +18,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('products', [ProductController::class, 'index'])->name('products.index');
     Route::get('products/create', [ProductController::class, 'create'])->name('products.create');
     Route::post('products', [ProductController::class, 'store'])->name('products.store');
+
+    Route::get('tickets', [TicketController::class, 'index'])->name('tickets.index');
+    Route::get('tickets/{ticket}', [TicketController::class, 'show'])->name('tickets.show');
+    Route::post('tickets/{ticket}/orders', [TicketController::class, 'storeOrder'])->name('tickets.orders.store');
+    Route::delete('tickets/{ticket}/orders/{order}', [TicketController::class, 'destroyOrder'])->name('tickets.orders.destroy');
 });
 
 require __DIR__.'/settings.php';

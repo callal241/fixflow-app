@@ -39,9 +39,11 @@ class Order extends Model
      */
     protected $fillable = [
         'name',
+        'product_id',
         'url',
         'supplier',
         'quantity',
+        'price',
         'cost',
         'is_billable',
         'status',
@@ -55,6 +57,7 @@ class Order extends Model
      */
     protected $casts = [
         'quantity' => 'integer',
+        'price' => 'float',
         'cost' => 'float',
     ];
 
@@ -68,6 +71,14 @@ class Order extends Model
     public function ticket()
     {
         return $this->belongsTo(Ticket::class);
+    }
+
+    /**
+     * Get the catalog product this order line is for (null for free-form parts).
+     */
+    public function product()
+    {
+        return $this->belongsTo(Product::class);
     }
 
     // SCOPES //////////////////////////////////////////////////////////////////////////////////////

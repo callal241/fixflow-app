@@ -15,6 +15,13 @@ class BusinessSeeder extends Seeder
     public const DEMO_BUSINESS_NAME = 'FixFlow Demo Shop';
 
     /**
+     * The display name of the secondary demo business.
+     *
+     * A distinct tenant, used to prove (and demonstrate) business scoping.
+     */
+    public const SECOND_BUSINESS_NAME = 'Second Bird Repair Co.';
+
+    /**
      * Seed the businesses table.
      *
      * Creates the demo shop (used for the default demo staff) plus a second
@@ -36,7 +43,7 @@ class BusinessSeeder extends Seeder
 
         // A second business to prove that data is scoped per-shop.
         Business::create([
-            'name' => 'Second Bird Repair Co.',
+            'name' => self::SECOND_BUSINESS_NAME,
             'trade' => 'Avionics & General Electronics',
             'email' => 'office@secondbird.test',
             'phone' => '+1 555 0200',
