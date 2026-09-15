@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
+use App\Models\Business;
 use Database\Factories\States\HasContactableStates;
 use Database\Factories\States\HasStatusStates;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -42,6 +43,11 @@ class UserFactory extends Factory
             'role' => UserRole::Technician,
             'status' => UserStatus::Active,
             'email_verified_at' => now(),
+            // Staff belong to a business by default (business_id is nullable for
+            // "shared"/ownerless accounts, but the dashboard and business-scoped
+            // queries assume a real shop). Pass null explicitly to test the
+            // ownerless case.
+            'business_id' => Business::factory(),
         ];
     }
 

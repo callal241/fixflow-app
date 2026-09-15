@@ -14,6 +14,19 @@ if grep -q '^DB_DATABASE=' .env 2>/dev/null; then
 else
     printf '\nDB_DATABASE=/data/database.sqlite\n' >> .env
 fi
+# Pin Docker-specific runtime values that were previously baked into the image
+# ENV. Kept in .env so the test suite (APP_ENV=testing) is not shadowed by an
+# image-level ENV leaking into $_SERVER.
+if grep -q '^APP_URL=' .env 2>/dev/null; then
+    sed -i 's|^APP_URL=.*|APP_URL=http://localhost:8790|' .env
+else
+    printf '\nAPP_URL=http://localhost:8790\n' >> .env
+fi
+if grep -q '^LOG_CHANNEL=' .env 2>/dev/null; then
+    sed -i 's|^LOG_CHANNEL=.*|LOG_CHANNEL=stderr|' .env
+else
+    printf '\nLOG_CHANNEL=stderr\n' >> .env
+fi
 if [ -z "$(grep -E '^APP_KEY=base64:.+' .env 2>/dev/null)" ]; then
     php artisan key:generate --force
 fi

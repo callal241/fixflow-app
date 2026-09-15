@@ -31,9 +31,11 @@ testModelStructure(
     ],
     fillables: [
         'name',
+        'product_id',
         'url',
         'supplier',
         'quantity',
+        'price',
         'cost',
         'is_billable',
         'status',
@@ -41,6 +43,7 @@ testModelStructure(
     ],
     casts: [
         'quantity' => 'integer',
+        'price' => 'float',
         'cost' => 'float',
     ]
 );

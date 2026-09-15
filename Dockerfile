@@ -24,16 +24,11 @@ COPY --from=frontend /app/node_modules ./node_modules
 COPY docker/entrypoint.sh /app/docker/entrypoint.sh
 RUN sed -i 's/\r$//' /app/docker/entrypoint.sh && chmod +x /app/docker/entrypoint.sh
 
-ENV APP_ENV=local \
-    APP_DEBUG=true \
-    APP_URL=http://localhost:8790 \
-    DB_CONNECTION=sqlite \
-    DB_DATABASE=/data/database.sqlite \
-    SESSION_DRIVER=database \
-    CACHE_STORE=database \
-    QUEUE_CONNECTION=database \
-    LOG_CHANNEL=stderr \
-    PHP_CLI_SERVER_WORKERS=4
+# NOTE: app env (APP_ENV, DB_*, SESSION/CACHE/QUEUE, APP_URL, LOG_CHANNEL) is
+# intentionally NOT baked in here. Image-level ENV leaks into PHP $_SERVER,
+# which phpdotenv reads before putenv/$_ENV — so it would shadow phpunit.xml's
+# test overrides (APP_ENV=testing, DB_DATABASE=:memory:) and make the suite run
+# against the live DB. The entrypoint writes these into .env at boot instead.
 
 EXPOSE 80
 ENTRYPOINT ["sh", "/app/docker/entrypoint.sh"]

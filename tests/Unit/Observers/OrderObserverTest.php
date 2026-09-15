@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\OrderStatus;
 use App\Models\Invoice;
 use App\Models\Order;
 use App\Models\Ticket;
@@ -31,6 +32,12 @@ beforeEach(function () {
         $order->shouldReceive('load')->with('ticket.invoice')->andReturnSelf();
         $order->shouldReceive('getAttribute')->with('ticket')->andReturn($ticket);
 
+        // Free-form part line by default: no catalog product, so the
+        // observer's stock logic short-circuits on a null product_id.
+        $order->shouldReceive('getAttribute')->with('product_id')->andReturn(null)->byDefault();
+        $order->shouldReceive('getAttribute')->with('quantity')->andReturn(1)->byDefault();
+        $order->shouldReceive('getAttribute')->with('status')->andReturn(OrderStatus::New)->byDefault();
+
         return $order;
     };
 
@@ -46,6 +53,21 @@ beforeEach(function () {
             ->once()
             ->with(['cost', 'is_billable'])
             ->andReturn($costOrBillableChanged);
+
+        $order->shouldReceive('wasChanged')
+            ->once()
+            ->with(['quantity'])
+            ->andReturn(false);
+
+        $order->shouldReceive('getOriginal')
+            ->with('status')
+            ->andReturn(null)
+            ->byDefault();
+
+        $order->shouldReceive('getOriginal')
+            ->with('quantity')
+            ->andReturn(1)
+            ->byDefault();
 
         return $order;
     };
