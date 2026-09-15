@@ -83,16 +83,27 @@ sold products alongside its repair tasks.
 - Isolation: biz1 admin → biz2 ticket **403**; biz2 manager → biz1 ticket **403**;
   biz2 sees only its own ticket (200). Second tenant login works.
 
-### Native select dropdown theming (fix verified)
-- **Bug:** `<option>` text in the product/category dropdowns was white-on-white in dark
-  mode. Root cause: theme is shadcn light/dark (default `system`) but `color-scheme` was
-  never set, so the browser painted the native dropdown *list* in the system light scheme
-  while the option text inherited the dark `--foreground` (white).
-- **Fix:** `resources/css/app.css` now sets `color-scheme: light` on `:root` and
-  `color-scheme: dark` on `.dark`, so native controls (select lists, scrollbars) paint to
-  match the active theme. Fixes every `<select>` app-wide, both themes.
-- **Verified:** rebuilt image; compiled asset `app-CCuyG9zd.css` contains
-  `color-scheme:light` + `color-scheme:dark`, and the running login page serves that hash.
+### Native select dropdown theming — FIXED (final: themed reka-ui Select, commit 81b16e2)
+- **Bug:** dropdown *list* background stayed white with unreadable text in dark mode.
+  First attempt (`color-scheme: light/dark` on `:root`/`.dark`, commit 4ee8662) was NOT
+  sufficient per user — the native `<select>` option list still ignored it.
+- **Final fix:** replaced the native `<select>` controls with a shadcn-style reka-ui
+  Select component set under `resources/js/components/ui/select/`
+  (`Select`, `SelectTrigger`, `SelectValue`, `SelectContent`, `SelectItem`,
+  `SelectItemText` + `index.ts` barrel), using the already-installed `reka-ui` (v2.3.0).
+  The list is a CSS-controlled popover: `bg-popover text-popover-foreground`, so in dark
+  mode it renders `#0a0a0a` background with `hsl(0 0% 98%)` text (verified in the compiled
+  asset `app-BVdya15w.css`: `--popover:#0a0a0a`, `--popover-foreground:0 0% 98%`,
+  `--accent:#262626`; light theme stays `#fff`).
+- **Pages converted (all native `<select>` in the app are gone):**
+  - `Tickets/Show.vue` — product picker (`form.product_id`, `number | null`; reka-ui
+    `AcceptableValue` includes `null`, so `v-model` binds directly).
+  - `Products/Create.vue` — category (keeps selectable "Uncategorised" = null value).
+  - `auth/RegisterBusiness.vue` — currency.
+- **Verified:** clean `vite build` in Docker; container recreated (DB volume preserved);
+  new CSS hash `app-BVdya15w.css` served; built JS bundle contains the new
+  `select-content` components; `GET /login` → 200.
+- Note: `v-model.number` is not needed — product/category ids bind as numbers directly.
 
 ## How to build/run (Docker, Windows PowerShell)
 - **Mirror** the repo to `C:\fixflow-src` (robocopy, exclude node_modules/.git/.openhands) because
@@ -128,5 +139,9 @@ sold products alongside its repair tasks.
 - Seeders reference the demo business via `BusinessSeeder::DEMO_BUSINESS_NAME`.
 - Vue pages: `AppLayout`, `Heading`, `InputError`, `useForm`, `router`, `Head`.
 - **No** `Table` or `Textarea` UI components exist — use plain markup/`<textarea>`.
+- A themed reka-ui **Select** component set exists at `@/components/ui/select`
+  (`Select, SelectTrigger, SelectValue, SelectContent, SelectItem, SelectItemText`).
+  Use it for all dropdowns (dark mode friendly); do not reintroduce native `<select>`.
+  `v-model` accepts `number | null` directly (reka-ui `AcceptableValue` includes `null`).
 - lucide-vue-next `^0.468.0`; verified icon names: TriangleAlert, AlertTriangle, Wrench,
   Package, Users, Plus.
