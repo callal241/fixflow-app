@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AdjustmentController;
 use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\ChecklistItemController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\InvoiceController;
@@ -54,6 +55,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('tickets/{ticket}/tasks', [TaskController::class, 'store'])->name('tickets.tasks.store');
     Route::put('tickets/{ticket}/tasks/{task}', [TaskController::class, 'update'])->name('tickets.tasks.update');
     Route::delete('tickets/{ticket}/tasks/{task}', [TaskController::class, 'destroy'])->name('tickets.tasks.destroy');
+
+    Route::post('tickets/{ticket}/checklist-items', [ChecklistItemController::class, 'store'])->name('tickets.checklist-items.store');
+    Route::put('tickets/{ticket}/checklist-items/{item}', [ChecklistItemController::class, 'update'])->name('tickets.checklist-items.update');
+    Route::delete('tickets/{ticket}/checklist-items/{item}', [ChecklistItemController::class, 'destroy'])->name('tickets.checklist-items.destroy');
 
     Route::post('tickets/{ticket}/invoice', [InvoiceController::class, 'store'])->name('tickets.invoice.store');
     Route::post('tickets/{ticket}/invoice/approve', [InvoiceController::class, 'update'])->name('tickets.invoice.approve');

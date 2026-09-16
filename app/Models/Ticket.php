@@ -118,6 +118,14 @@ class Ticket extends Model
     }
 
     /**
+     * Get the checklist items (pre/post repair) on the ticket.
+     */
+    public function checklistItems(): HasMany
+    {
+        return $this->hasMany(ChecklistItem::class);
+    }
+
+    /**
      * Get the orders associated with the ticket.
      */
     public function orders(): HasMany

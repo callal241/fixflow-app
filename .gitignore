@@ -34,3 +34,4 @@ build.log
 # agent-local memory (not part of the app)
 .openhands/
 _build.log
+_build_err.log

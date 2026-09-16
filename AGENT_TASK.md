@@ -1,10 +1,10 @@
-# AGENT_TASK — Finish FixFlow Repair (full spec, 2026-08-17)
+﻿# AGENT_TASK â€” Finish FixFlow Repair (full spec, 2026-08-17)
 
 ## Assignment (authoritative)
 Take FixFlow from its current state to a production-ready repair-shop POS + operations
-platform per the 57-section spec (customer intake → device ID → ticket → condition docs →
-repair selection → estimate → approval (pricing snapshot) → part reserve/order → repair →
-testing → invoice → payment → receipt → close; then suppliers, search, portal, automations,
+platform per the 57-section spec (customer intake â†’ device ID â†’ ticket â†’ condition docs â†’
+repair selection â†’ estimate â†’ approval (pricing snapshot) â†’ part reserve/order â†’ repair â†’
+testing â†’ invoice â†’ payment â†’ receipt â†’ close; then suppliers, search, portal, automations,
 reporting, Device Bridge, RBAC/audit, multi-location, API/webhooks).
 EXISTING app: audit first, preserve working functionality + visual identity, incremental
 improvement. No dead buttons, no fake data, no frontend-only features, server-side
@@ -32,16 +32,16 @@ validation + permissions. Tenant isolation is critical.
 - Container `fixflow-app`: app /app, DB volume `workrepairpossystem_fixflow-db`:/data,
   HTTP http://127.0.0.1:8790 (port 80 in container).
 - Tests: `docker exec fixflow-app sh -c "cd /app && php artisan test --compact"`
-- Rebuild: `docker compose build` (Start-Job → C:\fixflow-src\buildN.log; poll) →
-  `docker rm -f fixflow-app` → `docker compose up -d` → verify. Compose warnings to stderr
+- Rebuild: `docker compose build` (Start-Job â†’ C:\fixflow-src\buildN.log; poll) â†’
+  `docker rm -f fixflow-app` â†’ `docker compose up -d` â†’ verify. Compose warnings to stderr
   are harmless (NativeCommandError).
 - PowerShell: no heredocs (file_editor + docker cp), no &&, chain with ;, timeout<=120s,
-  empty output = finished. UNIX grep/find → `wsl -e bash -lc '...'` on /mnt/c/... paths.
+  empty output = finished. UNIX grep/find â†’ `wsl -e bash -lc '...'` on /mnt/c/... paths.
 - HTTP testing: curl INSIDE container (127.0.0.1:80); XSRF via cookie from /login,
   send as X-XSRF-TOKEN (URL-decoded); re-read cookie after login (rotates).
 - Long commands: Start-Job + log file + poll. Never block > ~60s.
 
-## Implementation map — FILL DURING AUDIT (Milestone 0)
+## Implementation map â€” FILL DURING AUDIT (Milestone 0)
 Statuses: WORKING / PARTIAL / BROKEN / PLACEHOLDER / MISSING
 Sections 1-57 of spec. Milestone 1 = full repair lifecycle with real persistent data.
 
@@ -50,7 +50,7 @@ Sections 1-57 of spec. Milestone 1 = full repair lifecycle with real persistent 
 - [x] 0-Audit: frontend (pages/components/stores/routes/sidebar)
 - [x] 0-Audit: DB schema + enums + seeders
 - [x] 0-Map: classify all spec sections (recorded in "Audit findings" below)
-- [x] Phase A: schema — ticket_number (FF-xxxxx auto + backfill), device fields
+- [x] Phase A: schema â€” ticket_number (FF-xxxxx auto + backfill), device fields
       (model_number/imei/color/storage/carrier), ticket internal_notes + intake_type.
       Verified: fresh DB chain + backfill (121 tickets numbered), live DB reseeded,
       suite green (330 passed / 0 failed / 15 skips).
@@ -69,7 +69,24 @@ Sections 1-57 of spec. Milestone 1 = full repair lifecycle with real persistent 
 - [ ] 1f: Inventory (stock, reserved/available, reorder, receiving)
 - [ ] 1g: POS/checkout (payments, deposits, refunds, receipts)
 - [ ] 1h: Invoices (from ticket, pay, status)
-- [ ] 1i: Testing/checklists (pre/post repair)
+- [x] 1i: Testing/checklists (pre/post repair)
+      DONE (2026-09-16): pre/post-repair QC checklist on the ticket.
+      New ChecklistItem model (business-scoped, non-billable, never affects
+      invoice totals) + ChecklistPhase (pre_repair/post_repair) +
+      ChecklistStatus (pending/passed/failed) + checklist_items migration
+      (inline business_id, post-dates scoping). ChecklistItemController
+      (store/update/destroy, tenant 403 + relation-scoped 404) behind 3
+      routes; Ticket::checklistItems() relation + TicketController::show()
+      props (checklist_items ordered pre-then-post, eager checkedBy, +
+      checklist_phases/statuses option values). Factory + checked() state.
+      Tickets/Show.vue "Testing & QC" card: pre/post groups, status Select,
+      add form, progress (passed/total + failed count), checker+time display.
+      9 feature tests (ChecklistTest): CRUD, status transitions + reset,
+      tenant 403, wrong-ticket 404, validation, page payload. Suite 367 pass /
+      0 fail / 15 skip (1460 assertions); Vite build green. Live in-process
+      E2E 17/17 (kernel + auth + CSRF + tenant).
+      NOTE: HasType hardcodes column "type" so ChecklistItem casts phase
+      manually instead of using the trait.
 - [ ] 1j: End-to-end verification with real data + tests
 - [ ] 2: Global search + command palette (Ctrl/Cmd+K)
 - [ ] 3: Supplier provider architecture + MobileSentrix/PhoneLCD/iFixit
@@ -84,38 +101,36 @@ Sections 1-57 of spec. Milestone 1 = full repair lifecycle with real persistent 
 - [ ] 12: Full end-to-end QA
 
 ## Current step
-DONE (2026-09-16): Estimate & Approval (1e) — commit f51a42b. Customer go-ahead
-recorded via invoices.approved_at; approved+unpaid invoice surfaces as Sent;
-POST tickets/{ticket}/invoice/approve (-> InvoiceController::update); billable
-tasks' approval gate cleared on approve; Tickets/Show.vue "Approve estimate"
-action + Approved badge; 7 tests; suite 358 pass / 0 fail; Vite build green.
-
-NEXT (1i): Testing/checklists — pre-repair (condition at intake) + post-repair
-(QC sign-off) attached to the ticket, so a repair is documented before/after.
-Pattern source: TaskController (line-item CRUD on a ticket) + the new
-estimate/approve flow for the "clear the gate" behavior. Keep tenant 403 guards
-+ arch preset (controller public methods limited to the whitelisted verbs).
-
+DONE (2026-09-16): Testing/checklists (1i) - see 1i checklist note above.
+Pre/post-repair QC checklist on the ticket (non-billable, tenant-isolated).
+Backend + UI + 9 feature tests + 17-point live in-process E2E all green;
+full suite 367 pass / 0 fail / 15 skip; Vite build green.
+PENDING: docker compose build to bake the new code into the image (code is
+currently live via docker cp only), then commit on docker-preview.
+NEXT (choose by spec value): 1a Customers CRUD and/or 1b Devices CRUD are the
+biggest remaining Milestone-1 gaps (both models+factories+scopes already exist;
+need controller/routes/pages). 1f Inventory, 1g POS/checkout, 1h Invoices UI
+follow. (1e estimate/approve is already done.)
 ## Audit findings (2026-08-17, verified against repo + live DB)
 
-### BACKEND — WORKING (solid foundation, 329 tests pin the contract)
+### BACKEND â€” WORKING (solid foundation, 329 tests pin the contract)
 - 12 models, all business-scoped via BelongsToBusiness (business_id, forBusiness scope,
   auto-stamp). Enums w/ HasNext + HasProgress (pending/complete cases): TicketStatus
   (new/in_progress/on_hold/resolved/closed), TaskType (10 types), TaskStatus, OrderStatus,
   DeviceStatus (received/on_hold/under_repair/ready/delivered), DeviceType, InvoiceStatus
   (draft/issued/sent/paid/refunded/cancelled), Priority (low..urgent), UserRole
   (admin/manager/technician), TransactionMethod/Type, AdjustmentType/Reason.
-- Observer engine (WORKING, tested): TaskObserver + OrderObserver → invoice totals;
-  InvoiceObserver → % adjustments; TransactionObserver → paid/refunded + auto status;
-  Ticket/Device/Adjustment → rollup counts. Invoice computed props: subtotal, net_amount,
+- Observer engine (WORKING, tested): TaskObserver + OrderObserver â†’ invoice totals;
+  InvoiceObserver â†’ % adjustments; TransactionObserver â†’ paid/refunded + auto status;
+  Ticket/Device/Adjustment â†’ rollup counts. Invoice computed props: subtotal, net_amount,
   balance, getComputedStatus.
 - Controllers/routes EXIST: Dashboard, Product (index/create/store), Ticket (index/show),
   Order (store/destroy), full Auth suite, Settings (profile/password).
-- Factories + seeders for ALL models (states: forCustomer/forDevice/forTicket/billable/…).
-- Workflow feature tests define E2E contract: customer→device→ticket→invoice→tasks→
-  orders→adjustment→payment→paid.
+- Factories + seeders for ALL models (states: forCustomer/forDevice/forTicket/billable/â€¦).
+- Workflow feature tests define E2E contract: customerâ†’deviceâ†’ticketâ†’invoiceâ†’tasksâ†’
+  ordersâ†’adjustmentâ†’paymentâ†’paid.
 
-### FRONTEND — WORKING (good kit, thin app layer)
+### FRONTEND â€” WORKING (good kit, thin app layer)
 - Full shadcn/reka-ui kit: Button, Card, Input, Label, Select, Checkbox, Dialog,
   DropdownMenu, Sheet, Tooltip, Avatar, Breadcrumb, Sidebar, Separator, Skeleton,
   Collapsible, NavigationMenu. AppLayout + AppSidebar + breadcrumbs + Heading.
@@ -123,24 +138,24 @@ estimate/approve flow for the "clear the gate" behavior. Keep tenant 403 guards
 - Pages EXIST: Dashboard, Welcome, 7 auth, Products/Index+Create, Tickets/Index+Show,
   Settings x3. Sidebar: Dashboard, Products, Tickets.
 
-### THE GAP — application layer (Milestone 1 blockers)
+### THE GAP â€” application layer (Milestone 1 blockers)
 - MISSING: Customers CRUD (no controller/routes/pages).
 - MISSING: Devices CRUD.
 - MISSING: Ticket create (intake) + update (status/assignee/priority/due/notes).
 - MISSING: Tasks UI (model+enum+observer all exist; zero UI/routes).
 - MISSING: Invoice UI (create-from-ticket, adjustments, payments, refunds, receipt).
 - MISSING: free-form parts (orders without product_id) in UI (product sale only).
-- MISSING: ticket number (spec §1) — tickets have only autoincrement id.
-- MISSING: device detail fields (imei/color/storage/carrier — spec §1/§2).
+- MISSING: ticket number (spec Â§1) â€” tickets have only autoincrement id.
+- MISSING: device detail fields (imei/color/storage/carrier â€” spec Â§1/Â§2).
 - MISSING: internal vs customer-visible notes.
 - MISSING (later milestones): global search, RBAC enforcement, audit log, photos,
   labels/QR, estimates-as-portal, suppliers, comms, automations, reports, device bridge,
   multi-location, API/webhooks.
 
-### DECISIONS (documented per spec §55)
-- Keep stack (Laravel/Inertia/Vue/SQLite/Docker) — spec §47. Build application layer on
+### DECISIONS (documented per spec Â§55)
+- Keep stack (Laravel/Inertia/Vue/SQLite/Docker) â€” spec Â§47. Build application layer on
   existing models/observers; do NOT rewrite engine.
-- Ticket number: `FF-` + 5-digit zero-padded global id (set on creating if empty) —
+- Ticket number: `FF-` + 5-digit zero-padded global id (set on creating if empty) â€”
   stable, searchable, tenant-unique.
 - Estimate = Invoice(Draft) created from ticket; approval = invoice sent + task approvals.
   (Matches existing architecture; InvoiceStatus already models the lifecycle.)

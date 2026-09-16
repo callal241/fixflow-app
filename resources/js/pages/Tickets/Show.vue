@@ -10,7 +10,7 @@ import { Separator } from '@/components/ui/separator';
 import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
 import {
-    Banknote, FileText, PackagePlus, Plus, Trash2,
+    Banknote, ClipboardCheck, FileText, PackagePlus, Plus, Trash2,
     UserRound, Wrench, CheckCircle2, CreditCard, Zap,
 } from 'lucide-vue-next';
 import { type BreadcrumbItem } from '@/types';
@@ -76,6 +76,15 @@ interface Product {
     price: number;
     stock: number;
 }
+interface ChecklistItem {
+    id: number;
+    label: string;
+    note: string | null;
+    phase: string;
+    status: string;
+    checked_by: string | null;
+    checked_at: string | null;
+}
 interface Invoice {
     id: number;
     status: string;
@@ -99,6 +108,7 @@ interface Props {
     customer: Customer | null;
     tasks: Task[];
     orders: OrderLine[];
+    checklist_items: ChecklistItem[];
     products: Product[];
     invoice: Invoice | null;
     payment_provider: { id: string; name: string; configured: boolean } | null;
@@ -107,6 +117,8 @@ interface Props {
     priorities: string[];
     task_types: string[];
     task_statuses: string[];
+    checklist_phases: string[];
+    checklist_statuses: string[];
     adjustment_types: string[];
     adjustment_reasons: string[];
     transaction_methods: string[];
@@ -168,6 +180,42 @@ const removeTask = (id: number) => {
         taskForm.delete(route('tickets.tasks.destroy', { ticket: props.ticket.id, task: id }));
     }
 };
+
+const checklistForm = useForm({
+    label: '',
+    note: '',
+    phase: 'pre_repair',
+    status: 'pending',
+});
+const addChecklistItem = () => checklistForm.post(route('tickets.checklist-items.store', props.ticket.id), {
+    onSuccess: () => { checklistForm.reset(); checklistForm.data.phase = 'pre_repair'; checklistForm.data.status = 'pending'; },
+});
+const setChecklistStatus = (item: ChecklistItem, status: string) => {
+    useForm({ label: item.label, note: item.note ?? '', phase: item.phase, status }).put(
+        route('tickets.checklist-items.update', { ticket: props.ticket.id, item: item.id }),
+    );
+};
+const removeChecklistItem = (id: number) => {
+    if (confirm('Remove this checklist item?')) {
+        checklistForm.delete(route('tickets.checklist-items.destroy', { ticket: props.ticket.id, item: id }));
+    }
+};
+const preItems = computed(() => props.checklist_items.filter((i) => i.phase === 'pre_repair'));
+const postItems = computed(() => props.checklist_items.filter((i) => i.phase === 'post_repair'));
+const checklistGroups = computed(() => [
+    { key: 'pre_repair', title: 'Pre-repair · condition at intake', items: preItems.value },
+    { key: 'post_repair', title: 'Post-repair · QC sign-off', items: postItems.value },
+].filter((g) => g.items.length > 0 || props.checklist_items.length > 0));
+const checklistProgress = computed(() => {
+    const total = props.checklist_items.length;
+    const passed = props.checklist_items.filter((i) => i.status === 'passed').length;
+    return { total, passed, failed: props.checklist_items.filter((i) => i.status === 'failed').length };
+});
+const statusToneFor = (status: string): string => ({
+    pending: 'bg-neutral-100 text-neutral-600 dark:bg-neutral-900 dark:text-neutral-300',
+    passed: 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300',
+    failed: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300',
+}[status] ?? '');
 
 const partForm = useForm({
     product_id: null as number | null,
@@ -514,6 +562,95 @@ const reasonForType = (type: string): string[] => {
                                     <Button type="submit" size="sm" :disabled="partForm.processing">
                                         <Plus class="h-4 w-4" />
                                         Add part
+                                    </Button>
+                                </div>
+                            </form>
+                        </CardContent>
+                    </Card>
+
+                    <!-- Testing & QC checklist -->
+                    <Card>
+                        <CardHeader class="flex-row items-center justify-between">
+                            <CardTitle><ClipboardCheck class="mr-2 inline h-4 w-4" />Testing &amp; QC</CardTitle>
+                            <div class="text-sm font-medium" :class="checklistProgress.failed > 0 ? 'text-destructive' : 'text-muted-foreground'">
+                                {{ checklistProgress.passed }}/{{ checklistProgress.total }} passed
+                                <span v-if="checklistProgress.failed > 0"> · {{ checklistProgress.failed }} failed</span>
+                            </div>
+                        </CardHeader>
+                        <CardContent class="space-y-4">
+                            <div v-if="checklist_items.length === 0" class="py-4 text-center text-sm text-muted-foreground">
+                                No checklist items yet — record the device condition up front, then the QC sign-off after the repair.
+                            </div>
+
+                            <div v-for="group in checklistGroups" :key="group.key" class="space-y-2">
+                                <div class="text-xs font-medium uppercase tracking-wide text-muted-foreground">{{ group.title }}</div>
+                                <div v-for="i in group.items" :key="i.id" class="flex items-center gap-3 rounded-lg border p-3">
+                                    <div class="flex-1">
+                                        <div class="flex items-center gap-2">
+                                            <span
+                                                class="rounded-full px-2 py-0.5 text-xs font-medium capitalize"
+                                                :class="statusToneFor(i.status)"
+                                            >{{ i.status }}</span>
+                                            <span class="text-sm font-medium">{{ i.label }}</span>
+                                        </div>
+                                        <div v-if="i.note" class="mt-0.5 text-xs text-muted-foreground">{{ i.note }}</div>
+                                        <div v-if="i.checked_by" class="mt-0.5 text-xs text-muted-foreground">
+                                            by {{ i.checked_by }}<template v-if="i.checked_at"> · {{ i.checked_at }}</template>
+                                        </div>
+                                    </div>
+                                    <Select :model-value="i.status" @update:model-value="(v: string) => setChecklistStatus(i, v)">
+                                        <SelectTrigger class="w-32">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem v-for="st in checklist_statuses" :key="st" :value="st">
+                                                <SelectItemText>{{ pretty(st) }}</SelectItemText>
+                                            </SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <Button variant="ghost" size="icon" @click="removeChecklistItem(i.id)">
+                                        <Trash2 class="h-4 w-4 text-muted-foreground" />
+                                    </Button>
+                                </div>
+                            </div>
+
+                            <Separator />
+
+                            <form @submit.prevent="addChecklistItem" class="grid gap-3 sm:grid-cols-12">
+                                <div class="grid gap-1 sm:col-span-4">
+                                    <Label>Check</Label>
+                                    <Input v-model="checklistForm.label" placeholder="e.g. No cracks, screen lights up" required :class="{ 'border-destructive': checklistForm.errors.label }" />
+                                    <InputError :message="checklistForm.errors.label" />
+                                </div>
+                                <div class="grid gap-1 sm:col-span-3">
+                                    <Label>Note</Label>
+                                    <Input v-model="checklistForm.note" placeholder="Details (optional)" />
+                                </div>
+                                <div class="grid gap-1 sm:col-span-2">
+                                    <Label>Stage</Label>
+                                    <Select v-model="checklistForm.phase">
+                                        <SelectTrigger class="w-full"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem v-for="ph in checklist_phases" :key="ph" :value="ph">
+                                                <SelectItemText>{{ pretty(ph) }}</SelectItemText>
+                                            </SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div class="grid gap-1 sm:col-span-2">
+                                    <Label>Status</Label>
+                                    <Select v-model="checklistForm.status">
+                                        <SelectTrigger class="w-full"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem v-for="st in checklist_statuses" :key="st" :value="st">
+                                                <SelectItemText>{{ pretty(st) }}</SelectItemText>
+                                            </SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div class="flex items-end gap-2 sm:col-span-1">
+                                    <Button type="submit" size="sm" class="w-full" :disabled="checklistForm.processing">
+                                        <Plus class="h-4 w-4" />
                                     </Button>
                                 </div>
                             </form>

@@ -6,11 +6,14 @@ use App\Enums\AdjustmentReason;
 use App\Enums\AdjustmentType;
 use App\Enums\DeviceStatus;
 use App\Enums\DeviceType;
+use App\Enums\ChecklistPhase;
+use App\Enums\ChecklistStatus;
 use App\Enums\Priority;
 use App\Enums\TaskStatus;
 use App\Enums\TaskType;
 use App\Enums\TicketStatus;
 use App\Enums\TransactionMethod;
+use App\Models\ChecklistItem;
 use App\Models\Customer;
 use App\Models\Device;
 use App\Models\Product;
@@ -212,6 +215,23 @@ class TicketController extends Controller
             'created_at' => $task->created_at?->toDateString(),
         ]);
 
+        // Pre/post-repair checklist (QC documentation, not billable work).
+        // Order pre_repair first (workflow order), not alphabetically.
+        $checklistItems = $ticket->checklistItems()
+            ->with('checkedBy:id,name')
+            ->orderByRaw("case phase when 'pre_repair' then 0 else 1 end")
+            ->orderBy('id')
+            ->get()
+            ->map(fn (ChecklistItem $item) => [
+                'id' => $item->id,
+                'label' => $item->label,
+                'note' => $item->note,
+                'phase' => $item->phase->value,
+                'status' => $item->status->value,
+                'checked_by' => $item->checkedBy?->name,
+                'checked_at' => $item->checked_at?->toDateTimeString(),
+            ]);
+
         $orders = $ticket->orders()
             ->with('product:id,name,sku,price,stock')
             ->latest()
@@ -311,6 +331,7 @@ class TicketController extends Controller
                 'email' => $ticket->device->customer->email,
             ] : null,
             'tasks' => $tasks,
+            'checklist_items' => $checklistItems,
             'orders' => $orders,
             'products' => $products,
             'invoice' => $invoicePayload,
@@ -324,6 +345,8 @@ class TicketController extends Controller
             'priorities' => Priority::values(),
             'task_types' => TaskType::values(),
             'task_statuses' => TaskStatus::values(),
+            'checklist_phases' => ChecklistPhase::values(),
+            'checklist_statuses' => ChecklistStatus::values(),
             'adjustment_types' => AdjustmentType::values(),
             'adjustment_reasons' => AdjustmentReason::values(),
             'transaction_methods' => TransactionMethod::values(),
