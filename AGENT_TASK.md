@@ -58,7 +58,14 @@ Sections 1-57 of spec. Milestone 1 = full repair lifecycle with real persistent 
 - [ ] 1b: Devices (manufacturer/model/serial/IMEI/etc., device catalog hierarchy)
 - [ ] 1c: Ticket intake (number, fields, photos, notes, authorization, status)
 - [ ] 1d: Ticket workflow (status transitions, notes/timeline, tasks/repairs, parts)
-- [ ] 1e: Estimates/quotes (options, approve, pricing snapshot)
+- [x] 1e: Estimates/quotes (options, approve, pricing snapshot)
+      DONE (2026-09-16, commit f51a42b): invoice IS the estimate (Draft);
+      invoices.approved_at + Invoice::approve() re-syncs totals+status in a
+      txn (approved+unpaid => Sent); POST tickets/{ticket}/invoice/approve
+      (-> InvoiceController::update, whitelisted name) w/ tenant 403 +
+      draft-only + billable-work guards; clears billable tasks' approval gate;
+      Tickets/Show.vue "Approve estimate" action + Approved badge; 7 tests.
+      (options / multiple quote revisions = future enhancement)
 - [ ] 1f: Inventory (stock, reserved/available, reorder, receiving)
 - [ ] 1g: POS/checkout (payments, deposits, refunds, receipts)
 - [ ] 1h: Invoices (from ticket, pay, status)
@@ -77,8 +84,17 @@ Sections 1-57 of spec. Milestone 1 = full repair lifecycle with real persistent 
 - [ ] 12: Full end-to-end QA
 
 ## Current step
-Phase B: Customers CRUD (backend + routes + pages). Pattern source: ProductController +
-Products/Index+Create. Sidebar: add Customers, then Devices.
+DONE (2026-09-16): Estimate & Approval (1e) — commit f51a42b. Customer go-ahead
+recorded via invoices.approved_at; approved+unpaid invoice surfaces as Sent;
+POST tickets/{ticket}/invoice/approve (-> InvoiceController::update); billable
+tasks' approval gate cleared on approve; Tickets/Show.vue "Approve estimate"
+action + Approved badge; 7 tests; suite 358 pass / 0 fail; Vite build green.
+
+NEXT (1i): Testing/checklists — pre-repair (condition at intake) + post-repair
+(QC sign-off) attached to the ticket, so a repair is documented before/after.
+Pattern source: TaskController (line-item CRUD on a ticket) + the new
+estimate/approve flow for the "clear the gate" behavior. Keep tenant 403 guards
++ arch preset (controller public methods limited to the whitelisted verbs).
 
 ## Audit findings (2026-08-17, verified against repo + live DB)
 
