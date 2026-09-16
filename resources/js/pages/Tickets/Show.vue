@@ -1,121 +1,129 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
-import Heading from '@/components/Heading.vue';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectItemText, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Package, Plus, Trash2, ShoppingCart } from 'lucide-vue-next';
-import { Head, Link, useForm, router, usePage } from '@inertiajs/vue3';
+import { Separator } from '@/components/ui/separator';
+import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
+import {
+    Banknote, FileText, PackagePlus, Plus, Trash2,
+    UserRound, Wrench, CheckCircle2, CreditCard, Zap,
+} from 'lucide-vue-next';
 import { type BreadcrumbItem } from '@/types';
 
-interface OrderProduct {
+interface Ticket {
     id: number;
-    name: string;
-    sku: string | null;
-    price: number;
-    stock: number;
-    condition: string | null;
+    ticket_number: string | null;
+    title: string;
+    description: string | null;
+    internal_notes: string | null;
+    intake_type: string;
+    status: string;
+    priority: string;
+    due_date: string | null;
+    assignee: string | null;
+    created_at: string | null;
 }
-
-interface Order {
+interface Device {
+    id: number | null;
+    model: string | null;
+    brand: string | null;
+    serial_number: string | null;
+    imei: string | null;
+    color: string | null;
+    storage: string | null;
+    carrier: string | null;
+    status: string | null;
+}
+interface Customer {
     id: number;
     name: string;
+    company: string | null;
+    phone: string | null;
+    email: string | null;
+}
+interface Task {
+    id: number;
+    type: string;
+    note: string | null;
+    cost: number;
+    is_billable: boolean;
+    status: string;
+    approved_at: string | null;
+    created_at: string | null;
+}
+interface OrderLine {
+    id: number;
+    name: string;
+    url: string | null;
+    supplier: string | null;
     quantity: number;
     price: number;
     cost: number;
     is_billable: boolean;
     status: string;
-    product: OrderProduct | null;
+    product_id: number | null;
+    product: { id: number; name: string; sku: string | null; price: number; stock: number } | null;
 }
-
-interface CatalogProduct {
+interface Product {
     id: number;
     name: string;
     sku: string | null;
     price: number;
     stock: number;
-    condition: string | null;
-    category: string | null;
 }
-
-interface TicketInfo {
+interface Invoice {
     id: number;
-    title: string;
     status: string;
-    priority: string;
-    device: string | null;
-    brand: string | null;
-    customer: string | null;
-    assignee: string | null;
-    created_at: string | null;
-}
-
-interface Totals {
-    task_total: number;
-    order_total: number;
     subtotal: number;
+    net_amount: number;
+    total: number;
+    paid_amount: number;
+    refunded_amount: number;
+    balance: number;
+    due_date: string | null;
+    transactions: { id: number; type: string; method: string; amount: number; note: string | null; created_at: string | null }[];
+    adjustments: { id: number; type: string; reason: string; amount: number | null; percentage: number | null; note: string | null }[];
 }
+interface Totals { task_total: number; order_total: number; subtotal: number; }
+interface Staff { id: number; name: string; }
 
 interface Props {
-    ticket: TicketInfo;
-    orders: Order[];
-    products: CatalogProduct[];
+    ticket: Ticket;
+    device: Device;
+    customer: Customer | null;
+    tasks: Task[];
+    orders: OrderLine[];
+    products: Product[];
+    invoice: Invoice | null;
+    payment_provider: { id: string; name: string; configured: boolean } | null;
     totals: Totals;
-    flash: { success: string | null };
+    statuses: string[];
+    priorities: string[];
+    task_types: string[];
+    task_statuses: string[];
+    adjustment_types: string[];
+    adjustment_reasons: string[];
+    transaction_methods: string[];
+    staff: Staff[];
 }
 
 const props = defineProps<Props>();
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Tickets', href: '/tickets' },
-    { title: `#${props.ticket.id}`, href: '' },
+    { title: props.ticket.ticket_number ?? `#${props.ticket.id}`, href: '' },
 ];
 
-const currency = (n: number) =>
-    new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }).format(n);
-
-// --- Add-a-product form ---
-const form = useForm({
-    product_id: null as number | null,
-    quantity: 1,
-    is_billable: true,
-});
-
-const selected = computed(() =>
-    props.products.find((p) => p.id === form.product_id) ?? null,
-);
-
-const remaining = computed(() => (selected.value ? selected.value.stock - form.quantity : 0));
-
-const lineTotal = computed(() =>
-    selected.value ? selected.value.price * form.quantity : 0,
-);
-
-const canAdd = computed(() => {
-    if (!selected.value) return false;
-    return form.quantity >= 1 && form.quantity <= selected.value.stock;
-});
-
 const page = usePage();
-const flashMessage = computed(() => (page.props as { flash?: { success: string | null } }).flash?.success ?? props.flash.success);
+const flashMessage = computed(() => (page.props as { flash?: { success: string | null } }).flash?.success ?? null);
 
-function submit() {
-    form.post(route('tickets.orders.store', { ticket: props.ticket.id }), {
-        preserveScroll: true,
-        onSuccess: () => form.reset('product_id', 'quantity'),
-    });
-}
-
-function remove(order: Order) {
-    if (!confirm(`Remove "${order.name}" from this ticket? Stock will be restored.`)) return;
-    router.delete(route('tickets.orders.destroy', { ticket: props.ticket.id, order: order.id }), {
-        preserveScroll: true,
-    });
-}
+const pretty = (s: string) => s.replace(/_/g, ' ');
+const money = (n: number) => `$${(n ?? 0).toFixed(2)}`;
 
 const statusTone: Record<string, string> = {
     new: 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300',
@@ -124,19 +132,197 @@ const statusTone: Record<string, string> = {
     resolved: 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300',
     closed: 'bg-neutral-200 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-500',
 };
+const invoiceTone: Record<string, string> = {
+    draft: 'bg-neutral-100 text-neutral-600 dark:bg-neutral-900 dark:text-neutral-400',
+    issued: 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300',
+    sent: 'bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300',
+    paid: 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300',
+    refunded: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
+    cancelled: 'bg-neutral-200 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-500',
+};
 
-const pretty = (s: string) => s.replace(/_/g, ' ');
+const ticketForm = useForm({
+    title: props.ticket.title,
+    description: props.ticket.description ?? '',
+    internal_notes: props.ticket.internal_notes ?? '',
+    status: props.ticket.status,
+    priority: props.ticket.priority,
+    due_date: props.ticket.due_date ?? '',
+    assignee_id: null as number | null,
+});
+const saveTicket = () => ticketForm.put(route('tickets.update', props.ticket.id));
+
+const taskForm = useForm({
+    type: 'repair',
+    note: '',
+    cost: 0,
+    is_billable: true,
+    status: 'new',
+});
+const addTask = () => taskForm.post(route('tickets.tasks.store', props.ticket.id), {
+    onSuccess: () => { taskForm.reset(); },
+});
+const removeTask = (id: number) => {
+    if (confirm('Remove this task?')) {
+        taskForm.delete(route('tickets.tasks.destroy', { ticket: props.ticket.id, task: id }));
+    }
+};
+
+const partForm = useForm({
+    product_id: null as number | null,
+    quantity: 1,
+    is_billable: true,
+});
+const addPart = () => partForm.post(route('tickets.orders.store', props.ticket.id), {
+    onSuccess: () => { partForm.data.quantity = 1; partForm.data.is_billable = true; partForm.data.product_id = null; },
+});
+const removePart = (id: number) => {
+    if (confirm('Remove this part?')) {
+        partForm.delete(route('tickets.orders.destroy', { ticket: props.ticket.id, order: id }));
+    }
+};
+
+const invoiceForm = useForm({ due_date: '' });
+const generateInvoice = () => invoiceForm.post(route('tickets.invoice.store', props.ticket.id));
+
+const adjustmentForm = useForm({
+    type: 'discount',
+    reason: '',
+    amount: null as number | null,
+    percentage: null as number | null,
+    note: '',
+});
+const addAdjustment = () => adjustmentForm.post(route('tickets.invoice.adjustments.store', props.ticket.id), {
+    onSuccess: () => { adjustmentForm.reset(); },
+});
+const removeAdjustment = (id: number) => {
+    if (confirm('Remove this adjustment?')) {
+        adjustmentForm.delete(route('tickets.invoice.adjustments.destroy', { ticket: props.ticket.id, adjustment: id }));
+    }
+};
+
+const paymentForm = useForm({
+    amount: null as number | null,
+    method: 'card',
+    type: 'payment',
+    note: '',
+});
+
+// Prefill the outstanding balance so "charge" is one click in the common case.
+const chargeBalance = () => {
+    if (props.invoice) {
+        paymentForm.data.amount = Math.round((Number(props.invoice.balance) || 0) * 100) / 100;
+    }
+};
+
+const addPayment = () => paymentForm.post(route('tickets.invoice.transactions.store', props.ticket.id), {
+    onSuccess: () => { paymentForm.reset(); paymentForm.data.type = 'payment'; },
+});
+const removePayment = (id: number) => {
+    if (confirm('Remove this transaction?')) {
+        paymentForm.delete(route('tickets.invoice.transactions.destroy', { ticket: props.ticket.id, transaction: id }));
+    }
+};
+
+const reasonForType = (type: string): string[] => {
+    const map: Record<string, string[]> = {
+        discount: ['bulk_service_discount', 'promotional_discount', 'price_match_discount'],
+        fee: ['rush_service_fee', 'service_fee', 'late_payment_fee'],
+        compensation: ['service_delay_compensation', 'damage_incident_compensation', 'rework_compensation'],
+        bonus: ['welcome_bonus', 'loyalty_bonus', 'referral_bonus'],
+    };
+    return map[type] ?? [];
+};
 </script>
 
 <template>
-    <Head :title="`Ticket #${ticket.id}`" />
+    <Head :title="ticket.ticket_number ?? `Ticket #${ticket.id}`" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex flex-col gap-4 rounded-xl p-4">
-            <Heading
-                :title="`Ticket #${ticket.id} — ${ticket.title}`"
-                :description="`${ticket.device ?? 'No device'}${ticket.brand ? ' · ' + ticket.brand : ''} · ${ticket.customer ?? 'No customer'}`"
-            />
+            <!-- Header + workflow controls -->
+            <Card>
+                <CardHeader class="flex-row items-center justify-between">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h2 class="text-lg font-semibold">{{ ticket.ticket_number ?? `#${ticket.id}` }}</h2>
+                            <span
+                                class="rounded-full px-2 py-0.5 text-xs font-medium capitalize"
+                                :class="statusTone[ticket.status] ?? 'bg-neutral-100 dark:bg-neutral-900'"
+                            >
+                                {{ pretty(ticket.status) }}
+                            </span>
+                            <span class="text-xs text-muted-foreground capitalize">· {{ ticket.intake_type.replace(/_/g, ' ') }}</span>
+                        </div>
+                        <p class="text-sm text-muted-foreground">{{ ticket.title }}</p>
+                    </div>
+                    <Button :disabled="ticketForm.processing" @click="saveTicket">
+                        Save ticket
+                    </Button>
+                </CardHeader>
+                <CardContent class="space-y-4">
+                    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                        <div class="grid gap-2">
+                            <Label>Status</Label>
+                            <Select v-model="ticketForm.status">
+                                <SelectTrigger class="w-full"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem v-for="s in statuses" :key="s" :value="s">
+                                        <SelectItemText>{{ pretty(s) }}</SelectItemText>
+                                    </SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div class="grid gap-2">
+                            <Label>Priority</Label>
+                            <Select v-model="ticketForm.priority">
+                                <SelectTrigger class="w-full"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem v-for="p in priorities" :key="p" :value="p">
+                                        <SelectItemText>{{ p }}</SelectItemText>
+                                    </SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div class="grid gap-2">
+                            <Label>Assigned to</Label>
+                            <Select v-model="ticketForm.assignee_id">
+                                <SelectTrigger class="w-full"><SelectValue placeholder="Unassigned" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem :value="null">Unassigned</SelectItem>
+                                    <SelectItem v-for="s in staff" :key="s.id" :value="s.id">
+                                        <SelectItemText>{{ s.name }}</SelectItemText>
+                                    </SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div class="grid gap-2">
+                            <Label>Due date</Label>
+                            <Input v-model="ticketForm.due_date" type="date" />
+                        </div>
+                    </div>
+
+                    <div class="grid gap-4 lg:grid-cols-2">
+                        <div class="grid gap-2">
+                            <Label>Reported problem</Label>
+                            <textarea
+                                v-model="ticketForm.description"
+                                rows="2"
+                                class="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                            />
+                        </div>
+                        <div class="grid gap-2">
+                            <Label>Internal notes</Label>
+                            <textarea
+                                v-model="ticketForm.internal_notes"
+                                rows="2"
+                                placeholder="Team-only notes…"
+                                class="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                            />
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
 
             <p
                 v-if="flashMessage"
@@ -146,195 +332,361 @@ const pretty = (s: string) => s.replace(/_/g, ' ');
             </p>
 
             <div class="grid gap-4 lg:grid-cols-3">
-                <!-- Left: sales surface -->
-                <div class="flex flex-col gap-4 lg:col-span-2">
-                    <!-- Add a product -->
+                <!-- Device + customer -->
+                <div class="flex flex-col gap-4">
                     <Card>
                         <CardHeader>
                             <CardTitle>
-                                <ShoppingCart class="mr-2 inline h-4 w-4" />
-                                Sell a product against this ticket
+                                <PackagePlus class="mr-2 inline h-4 w-4" />
+                                Device
                             </CardTitle>
                         </CardHeader>
-                        <CardContent class="flex flex-col gap-3">
-                            <div class="grid gap-3 sm:grid-cols-[1fr_6rem_4rem]">
-                                <div class="flex flex-col gap-1">
-                                    <Label for="product_id">Product</Label>
-                                    <Select v-model="form.product_id">
-                                        <SelectTrigger id="product_id" class="w-full" :class="{ 'border-destructive': form.errors.product_id }">
-                                            <SelectValue placeholder="Choose a product…" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem v-for="p in products" :key="p.id" :value="p.id">
-                                                <SelectItemText>{{ p.name }} — {{ currency(p.price) }} ({{ p.stock }} in stock)</SelectItemText>
-                                            </SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                    <span v-if="form.errors.product_id" class="text-xs text-red-600">
-                                        {{ form.errors.product_id }}
-                                    </span>
-                                </div>
-
-                                <div class="flex flex-col gap-1">
-                                    <Label for="quantity">Qty</Label>
-                                    <Input
-                                        id="quantity"
-                                        type="number"
-                                        min="1"
-                                        v-model.number="form.quantity"
-                                    />
-                                    <span
-                                        v-if="selected && form.quantity > selected.stock"
-                                        class="text-xs text-red-600"
-                                    >
-                                        Only {{ selected.stock }} left.
-                                    </span>
-                                </div>
-
-                                <div class="flex items-end">
-                                    <Button type="button" :disabled="!canAdd" @click="submit()">
-                                        <Plus class="h-4 w-4" />
-                                        Add
-                                    </Button>
-                                </div>
-                            </div>
-
-                            <div class="flex items-center gap-4 text-sm text-muted-foreground">
-                                <label class="flex items-center gap-2">
-                                    <Checkbox
-                                        :model-value="form.is_billable"
-                                        @update:model-value="(v: boolean | 'indeterminate') => (form.is_billable = v === true)"
-                                    />
-                                    Billable (included in invoice)
-                                </label>
-                                <span v-if="selected">
-                                    Line total: <span class="font-medium text-foreground">{{ currency(lineTotal) }}</span>
-                                </span>
-                            </div>
+                        <CardContent class="flex flex-col gap-1.5 text-sm">
+                            <div class="flex justify-between"><span class="text-muted-foreground">Model</span><span>{{ device.brand ? `${device.brand} ` : '' }}{{ device.model }}</span></div>
+                            <div class="flex justify-between"><span class="text-muted-foreground">Serial</span><span class="font-mono text-xs">{{ device.serial_number ?? '—' }}</span></div>
+                            <div v-if="device.imei" class="flex justify-between"><span class="text-muted-foreground">IMEI</span><span class="font-mono text-xs">{{ device.imei }}</span></div>
+                            <div v-if="device.color" class="flex justify-between"><span class="text-muted-foreground">Color</span><span>{{ device.color }}</span></div>
+                            <div v-if="device.storage" class="flex justify-between"><span class="text-muted-foreground">Storage</span><span>{{ device.storage }}</span></div>
+                            <div v-if="device.carrier" class="flex justify-between"><span class="text-muted-foreground">Carrier</span><span>{{ device.carrier }}</span></div>
                         </CardContent>
                     </Card>
 
-                    <!-- Order lines -->
-                    <Card>
+                    <Card v-if="customer">
                         <CardHeader>
                             <CardTitle>
-                                <Package class="mr-2 inline h-4 w-4" />
-                                Parts &amp; products on this ticket ({{ orders.length }})
+                                <UserRound class="mr-2 inline h-4 w-4" />
+                                Customer
                             </CardTitle>
                         </CardHeader>
-                        <CardContent>
-                            <p v-if="orders.length === 0" class="py-8 text-center text-sm text-muted-foreground">
-                                Nothing sold against this ticket yet.
-                            </p>
-
-                            <div v-else class="overflow-x-auto rounded-lg border">
-                                <table class="w-full text-sm">
-                                    <thead class="border-b bg-muted/40">
-                                        <tr class="text-left text-muted-foreground">
-                                            <th class="px-4 py-2 font-medium">Item</th>
-                                            <th class="px-4 py-2 text-right font-medium">Unit</th>
-                                            <th class="px-4 py-2 text-right font-medium">Qty</th>
-                                            <th class="px-4 py-2 text-right font-medium">Line total</th>
-                                            <th class="px-4 py-2 font-medium">Billable</th>
-                                            <th class="px-4 py-2" />
-                                        </tr>
-                                    </thead>
-                                    <tbody class="divide-y">
-                                        <tr v-for="order in orders" :key="order.id" class="hover:bg-muted/20">
-                                            <td class="px-4 py-2">
-                                                <div class="font-medium">{{ order.name }}</div>
-                                                <div class="text-xs text-muted-foreground">
-                                                    {{ order.product?.sku ?? 'Free-form part' }}
-                                                    <template v-if="!order.is_billable"> · non-billable</template>
-                                                </div>
-                                            </td>
-                                            <td class="px-4 py-2 text-right">{{ currency(order.price) }}</td>
-                                            <td class="px-4 py-2 text-right">{{ order.quantity }}</td>
-                                            <td class="px-4 py-2 text-right font-medium">{{ currency(order.cost) }}</td>
-                                            <td class="px-4 py-2">
-                                                <span
-                                                    class="rounded-full px-2 py-0.5 text-xs font-medium"
-                                                    :class="order.is_billable
-                                                        ? 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300'
-                                                        : 'bg-neutral-100 text-neutral-500 dark:bg-neutral-900'"
-                                                >
-                                                    {{ order.is_billable ? 'Yes' : 'No' }}
-                                                </span>
-                                            </td>
-                                            <td class="px-4 py-2 text-right">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    class="h-8 w-8 text-muted-foreground hover:text-red-600"
-                                                    @click="remove(order)"
-                                                >
-                                                    <Trash2 class="h-4 w-4" />
-                                                </Button>
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
+                        <CardContent class="flex flex-col gap-1.5 text-sm">
+                            <Link :href="route('customers.show', customer.id)" class="font-medium hover:underline">{{ customer.name }}</Link>
+                            <div v-if="customer.company" class="text-xs text-muted-foreground">{{ customer.company }}</div>
+                            <div v-if="customer.phone" class="text-muted-foreground">{{ customer.phone }}</div>
+                            <div v-if="customer.email" class="text-xs text-muted-foreground">{{ customer.email }}</div>
                         </CardContent>
                     </Card>
                 </div>
 
-                <!-- Right: totals + status -->
-                <div class="flex flex-col gap-4">
+                <!-- Tasks + Parts -->
+                <div class="flex flex-col gap-4 lg:col-span-2">
+                    <!-- Repair tasks -->
                     <Card>
-                        <CardHeader>
-                            <CardTitle>Totals</CardTitle>
+                        <CardHeader class="flex-row items-center justify-between">
+                            <CardTitle><Wrench class="mr-2 inline h-4 w-4" />Repair work</CardTitle>
+                            <div class="text-sm font-medium">Total {{ money(totals.task_total) }}</div>
                         </CardHeader>
-                        <CardContent class="flex flex-col gap-2 text-sm">
-                            <div class="flex justify-between">
-                                <span class="text-muted-foreground">Tasks</span>
-                                <span>{{ currency(totals.task_total) }}</span>
+                        <CardContent class="space-y-4">
+                            <div v-if="tasks.length === 0" class="py-4 text-center text-sm text-muted-foreground">
+                                No repair work logged yet.
                             </div>
-                            <div class="flex justify-between">
-                                <span class="text-muted-foreground">Parts &amp; products</span>
-                                <span>{{ currency(totals.order_total) }}</span>
+
+                            <div v-for="t in tasks" :key="t.id" class="flex items-center gap-3 rounded-lg border p-3">
+                                <div class="flex-1">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-sm font-medium capitalize">{{ t.type }}</span>
+                                        <span
+                                            class="rounded-full px-2 py-0.5 text-xs font-medium capitalize"
+                                            :class="t.is_billable
+                                                ? 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300'
+                                                : 'bg-neutral-100 text-neutral-500 dark:bg-neutral-900'"
+                                        >
+                                            {{ t.is_billable ? 'billable' : 'not billable' }}
+                                        </span>
+                                        <span class="text-xs capitalize text-muted-foreground">· {{ t.status }}</span>
+                                    </div>
+                                    <div v-if="t.note" class="mt-0.5 text-xs text-muted-foreground">{{ t.note }}</div>
+                                </div>
+                                <div class="text-sm font-medium">{{ money(t.cost) }}</div>
+                                <Button variant="ghost" size="icon" @click="removeTask(t.id)">
+                                    <Trash2 class="h-4 w-4 text-muted-foreground" />
+                                </Button>
                             </div>
-                            <div class="mt-1 flex justify-between border-t pt-2 text-base font-semibold">
-                                <span>Subtotal</span>
-                                <span>{{ currency(totals.subtotal) }}</span>
-                            </div>
+
+                            <Separator />
+
+                            <form @submit.prevent="addTask" class="grid gap-3 sm:grid-cols-12">
+                                <div class="grid gap-1 sm:col-span-3">
+                                    <Label>Work type</Label>
+                                    <Select v-model="taskForm.type">
+                                        <SelectTrigger class="w-full"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem v-for="tt in task_types" :key="tt" :value="tt">
+                                                <SelectItemText>{{ tt }}</SelectItemText>
+                                            </SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div class="grid gap-1 sm:col-span-4">
+                                    <Label>Note</Label>
+                                    <Input v-model="taskForm.note" placeholder="What was done / found" />
+                                </div>
+                                <div class="grid gap-1 sm:col-span-2">
+                                    <Label>Cost</Label>
+                                    <Input v-model.number="taskForm.cost" type="number" step="0.01" min="0" required />
+                                </div>
+                                <div class="grid gap-1 sm:col-span-2">
+                                    <Label>Status</Label>
+                                    <Select v-model="taskForm.status">
+                                        <SelectTrigger class="w-full"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem v-for="st in task_statuses" :key="st" :value="st">
+                                                <SelectItemText>{{ pretty(st) }}</SelectItemText>
+                                            </SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div class="flex items-end gap-2 sm:col-span-1">
+                                    <Button type="submit" size="sm" class="w-full" :disabled="taskForm.processing">
+                                        <Plus class="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </form>
                         </CardContent>
                     </Card>
 
+                    <!-- Parts / products -->
                     <Card>
-                        <CardHeader>
-                            <CardTitle>Details</CardTitle>
+                        <CardHeader class="flex-row items-center justify-between">
+                            <CardTitle><PackagePlus class="mr-2 inline h-4 w-4" />Parts &amp; products</CardTitle>
+                            <div class="text-sm font-medium">Total {{ money(totals.order_total) }}</div>
                         </CardHeader>
-                        <CardContent class="flex flex-col gap-2 text-sm">
-                            <div class="flex justify-between">
-                                <span class="text-muted-foreground">Status</span>
-                                <span
-                                    class="rounded-full px-2 py-0.5 text-xs font-medium capitalize"
-                                    :class="statusTone[ticket.status] ?? 'bg-neutral-100 dark:bg-neutral-900'"
-                                >
-                                    {{ pretty(ticket.status) }}
-                                </span>
+                        <CardContent class="space-y-4">
+                            <div v-if="orders.length === 0" class="py-4 text-center text-sm text-muted-foreground">
+                                No parts added yet.
                             </div>
-                            <div class="flex justify-between">
-                                <span class="text-muted-foreground">Priority</span>
-                                <span class="capitalize">{{ pretty(ticket.priority) }}</span>
+
+                            <div v-for="o in orders" :key="o.id" class="flex items-center gap-3 rounded-lg border p-3">
+                                <div class="flex-1">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-sm font-medium">{{ o.name }}</span>
+                                        <span
+                                            class="rounded-full px-2 py-0.5 text-xs font-medium capitalize"
+                                            :class="o.is_billable
+                                                ? 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300'
+                                                : 'bg-neutral-100 text-neutral-500 dark:bg-neutral-900'"
+                                        >
+                                            {{ o.is_billable ? 'billable' : 'not billable' }}
+                                        </span>
+                                    </div>
+                                    <div class="mt-0.5 text-xs text-muted-foreground">
+                                        {{ o.quantity }} × {{ money(o.price) }}
+                                        <template v-if="o.supplier"> · {{ o.supplier }}</template>
+                                    </div>
+                                </div>
+                                <div class="text-sm font-medium">{{ money(o.cost) }}</div>
+                                <Button variant="ghost" size="icon" @click="removePart(o.id)">
+                                    <Trash2 class="h-4 w-4 text-muted-foreground" />
+                                </Button>
                             </div>
-                            <div class="flex justify-between">
-                                <span class="text-muted-foreground">Assignee</span>
-                                <span>{{ ticket.assignee ?? 'Unassigned' }}</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-muted-foreground">Customer</span>
-                                <span>{{ ticket.customer ?? 'No customer' }}</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-muted-foreground">Opened</span>
-                                <span>{{ ticket.created_at ? ticket.created_at.slice(0, 10) : '-' }}</span>
-                            </div>
+
+                            <Separator />
+
+                            <form @submit.prevent="addPart" class="grid gap-3 sm:grid-cols-12">
+                                <div class="grid gap-1 sm:col-span-6">
+                                    <Label>Product</Label>
+                                    <Select v-model="partForm.product_id">
+                                        <SelectTrigger class="w-full" :class="{ 'border-destructive': partForm.errors.product_id }">
+                                            <SelectValue placeholder="Choose from catalog…" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem v-for="p in products" :key="p.id" :value="p.id">
+                                                <SelectItemText>
+                                                    {{ p.name }}{{ p.sku ? ` (${p.sku})` : '' }} — {{ money(p.price) }} · {{ p.stock }} in stock
+                                                </SelectItemText>
+                                            </SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <InputError :message="partForm.errors.product_id" />
+                                </div>
+                                <div class="grid gap-1 sm:col-span-2">
+                                    <Label>Qty</Label>
+                                    <Input v-model.number="partForm.quantity" type="number" min="1" />
+                                </div>
+                                <div class="flex items-end gap-2 sm:col-span-4">
+                                    <Button type="submit" size="sm" :disabled="partForm.processing">
+                                        <Plus class="h-4 w-4" />
+                                        Add part
+                                    </Button>
+                                </div>
+                            </form>
                         </CardContent>
                     </Card>
                 </div>
             </div>
+
+            <!-- Invoice & payments -->
+            <Card>
+                <CardHeader class="flex-row items-center justify-between">
+                    <CardTitle><FileText class="mr-2 inline h-4 w-4" />Invoice &amp; payment</CardTitle>
+                    <div class="flex items-center gap-2">
+                        <span
+                            v-if="invoice"
+                            class="rounded-full px-2 py-0.5 text-xs font-medium capitalize"
+                            :class="invoiceTone[invoice.status] ?? 'bg-neutral-100 dark:bg-neutral-900'"
+                        >
+                            {{ invoice.status }}
+                        </span>
+                        <Button v-if="!invoice" variant="outline" size="sm" :disabled="invoiceForm.processing" @click="generateInvoice">
+                            <FileText class="mr-1 h-4 w-4" />
+                            Generate invoice
+                        </Button>
+                        <Button v-else variant="outline" size="sm" :disabled="invoiceForm.processing" @click="generateInvoice">
+                            <FileText class="mr-1 h-4 w-4" />
+                            Refresh totals
+                        </Button>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    <div class="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                        <div class="rounded-lg border p-3">
+                            <div class="text-xs text-muted-foreground">Subtotal</div>
+                            <div class="text-lg font-semibold">{{ money(totals.subtotal) }}</div>
+                        </div>
+                        <div class="rounded-lg border p-3">
+                            <div class="text-xs text-muted-foreground">Total due</div>
+                            <div class="text-lg font-semibold">{{ invoice ? money(invoice.total) : money(totals.subtotal) }}</div>
+                        </div>
+                        <div class="rounded-lg border p-3">
+                            <div class="text-xs text-muted-foreground">Paid</div>
+                            <div class="text-lg font-semibold text-green-600 dark:text-green-400">{{ invoice ? money(invoice.paid_amount) : money(0) }}</div>
+                        </div>
+                        <div class="rounded-lg border p-3">
+                            <div class="text-xs text-muted-foreground">Balance</div>
+                            <div class="text-lg font-semibold">{{ invoice ? money(invoice.balance) : money(totals.subtotal) }}</div>
+                        </div>
+                    </div>
+
+                    <template v-if="invoice">
+                        <div class="grid gap-6 lg:grid-cols-2">
+                            <!-- Adjustments -->
+                            <div class="space-y-3">
+                                <h3 class="text-sm font-medium">Adjustments</h3>
+                                <p v-if="invoice.adjustments.length === 0" class="text-xs text-muted-foreground">No adjustments.</p>
+                                <div v-for="a in invoice.adjustments" :key="a.id" class="flex items-center gap-2 rounded-lg border p-2 text-sm">
+                                    <span class="flex-1 capitalize">{{ a.type }} · {{ pretty(a.reason) }}</span>
+                                    <span>{{ a.percentage !== null ? `${a.percentage}%` : money(a.amount ?? 0) }}</span>
+                                    <Button variant="ghost" size="icon" @click="removeAdjustment(a.id)">
+                                        <Trash2 class="h-3.5 w-3.5 text-muted-foreground" />
+                                    </Button>
+                                </div>
+
+                                <form @submit.prevent="addAdjustment" class="grid gap-2 sm:grid-cols-12">
+                                    <div class="grid gap-1 sm:col-span-3">
+                                        <Label>Type</Label>
+                                        <Select v-model="adjustmentForm.type">
+                                            <SelectTrigger class="w-full"><SelectValue /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem v-for="t in adjustment_types" :key="t" :value="t">
+                                                    <SelectItemText>{{ t }}</SelectItemText>
+                                                </SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div class="grid gap-1 sm:col-span-3">
+                                        <Label>Reason</Label>
+                                        <Select v-model="adjustmentForm.reason">
+                                            <SelectTrigger class="w-full"><SelectValue placeholder="Reason" /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem v-for="r in reasonForType(adjustmentForm.type)" :key="r" :value="r">
+                                                    <SelectItemText>{{ pretty(r) }}</SelectItemText>
+                                                </SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div class="grid gap-1 sm:col-span-3">
+                                        <Label>Amount / %</Label>
+                                        <Input v-model.number="adjustmentForm.amount" type="number" step="0.01" min="0" placeholder="Amount" />
+                                    </div>
+                                    <div class="flex items-end gap-2 sm:col-span-3">
+                                        <Button type="submit" size="sm" :disabled="adjustmentForm.processing">
+                                            <Plus class="h-4 w-4" />
+                                            Add
+                                        </Button>
+                                    </div>
+                                </form>
+                            </div>
+
+                            <!-- Payments -->
+                            <div class="space-y-3">
+                                <div class="flex items-center justify-between gap-2">
+                                    <h3 class="text-sm font-medium">Payments &amp; refunds</h3>
+                                    <span
+                                        v-if="payment_provider"
+                                        class="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
+                                        :title="payment_provider.configured ? 'Provider is configured' : 'Provider is not configured; falling back to counter'"
+                                    >
+                                        <CreditCard class="h-3 w-3" />
+                                        {{ payment_provider.name }}
+                                    </span>
+                                </div>
+                                <p v-if="invoice.transactions.length === 0" class="text-xs text-muted-foreground">No transactions yet.</p>
+                                <div v-for="tx in invoice.transactions" :key="tx.id" class="flex items-center gap-2 rounded-lg border p-2 text-sm">
+                                    <Banknote class="h-4 w-4 text-muted-foreground" />
+                                    <span class="flex-1 capitalize">
+                                        <span :class="tx.type === 'refund' ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'">{{ tx.type }}</span>
+                                        · {{ tx.method }}
+                                        <span v-if="tx.note" class="text-muted-foreground"> · {{ tx.note }}</span>
+                                    </span>
+                                    <span class="font-medium">{{ money(tx.amount) }}</span>
+                                    <Button variant="ghost" size="icon" @click="removePayment(tx.id)">
+                                        <Trash2 class="h-3.5 w-3.5 text-muted-foreground" />
+                                    </Button>
+                                </div>
+
+                                <form @submit.prevent="addPayment" class="grid gap-2 rounded-lg border p-3 sm:grid-cols-12">
+                                    <div class="grid gap-1 sm:col-span-3">
+                                        <Label>Amount</Label>
+                                        <Input v-model.number="paymentForm.amount" type="number" step="0.01" min="0.01" required :class="{ 'border-destructive': paymentForm.errors.amount }" />
+                                        <InputError :message="paymentForm.errors.amount" />
+                                    </div>
+                                    <div class="grid gap-1 sm:col-span-3">
+                                        <Label>Method</Label>
+                                        <Select v-model="paymentForm.method">
+                                            <SelectTrigger class="w-full"><SelectValue /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem v-for="m in transaction_methods" :key="m" :value="m">
+                                                    <SelectItemText>{{ pretty(m) }}</SelectItemText>
+                                                </SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div class="grid gap-1 sm:col-span-3">
+                                        <Label>Type</Label>
+                                        <Select v-model="paymentForm.type">
+                                            <SelectTrigger class="w-full"><SelectValue /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="payment">Payment</SelectItem>
+                                                <SelectItem value="refund">Refund</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div class="flex items-end gap-2 sm:col-span-3">
+                                        <Button
+                                            v-if="paymentForm.type === 'payment' && Number(invoice.balance) > 0"
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            @click="chargeBalance"
+                                        >
+                                            <Zap class="h-4 w-4" />
+                                            Balance
+                                        </Button>
+                                        <Button type="submit" size="sm" :disabled="paymentForm.processing">
+                                            <Banknote class="h-4 w-4" />
+                                            Record
+                                        </Button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </template>
+
+                    <div v-else class="flex items-center gap-2 rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                        <CheckCircle2 class="h-4 w-4" />
+                        Log repair work and add parts, then generate the invoice to bill the customer.
+                    </div>
+                </CardContent>
+            </Card>
         </div>
     </AppLayout>
 </template>

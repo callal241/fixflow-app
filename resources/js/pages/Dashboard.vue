@@ -1,10 +1,15 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
     Wrench,
     Users,
     TriangleAlert,
+    Plus,
+    UserPlus,
+    Smartphone,
+    Package,
     type LucideIcon,
 } from 'lucide-vue-next';
 import { Head, Link } from '@inertiajs/vue3';
@@ -70,6 +75,13 @@ const statusTone: Record<string, string> = {
     resolved: 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300',
     closed: 'bg-neutral-100 text-neutral-500 dark:bg-neutral-900 dark:text-neutral-400',
 };
+
+const quickActions: { label: string; icon: LucideIcon; href: string }[] = [
+    { label: 'New intake', icon: Plus, href: route('tickets.create') },
+    { label: 'Add customer', icon: UserPlus, href: route('customers.create') },
+    { label: 'Register device', icon: Smartphone, href: route('devices.create') },
+    { label: 'New product', icon: Package, href: route('products.create') },
+];
 </script>
 
 <template>
@@ -77,7 +89,7 @@ const statusTone: Record<string, string> = {
 
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex flex-col gap-4 rounded-xl p-4">
-            <div class="flex items-center justify-between">
+            <div class="flex flex-wrap items-center justify-between gap-2">
                 <div>
                     <h2 class="text-xl font-semibold tracking-tight">
                         {{ business?.name ?? 'Dashboard' }}
@@ -86,8 +98,26 @@ const statusTone: Record<string, string> = {
                         {{ business.trade }}
                     </p>
                 </div>
-                <Link :href="route('products.index')" class="text-sm font-medium underline underline-offset-4">
-                    Manage products
+                <div class="flex items-center gap-2">
+                    <Link :href="route('products.index')" class="text-sm font-medium underline underline-offset-4">
+                        Manage products
+                    </Link>
+                    <Link :href="route('tickets.create')">
+                        <Button size="lg">
+                            <Plus class="h-4 w-4" />
+                            New intake
+                        </Button>
+                    </Link>
+                </div>
+            </div>
+
+            <!-- Quick actions -->
+            <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <Link v-for="action in quickActions" :key="action.label" :href="action.href" class="rounded-xl">
+                    <Button variant="outline" class="w-full justify-start gap-2 font-normal">
+                        <component :is="action.icon" class="h-4 w-4" />
+                        {{ action.label }}
+                    </Button>
                 </Link>
             </div>
 

@@ -60,6 +60,7 @@ class Device extends Model
         'warranty_expire_date',
         'type',
         'status',
+        'customer_id',
     ];
 
     /**

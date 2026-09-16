@@ -29,6 +29,7 @@ class Business extends Model
         'zip_code',
         'currency',
         'tax_rate',
+        'payment_provider_id',
         'logo_path',
         'notes',
     ];

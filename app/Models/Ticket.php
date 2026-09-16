@@ -59,6 +59,8 @@ class Ticket extends Model
         'priority',
         'status',
         'due_date',
+        'assignee_id',
+        'device_id',
     ];
 
     /**

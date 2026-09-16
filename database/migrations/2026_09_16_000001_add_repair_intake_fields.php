@@ -13,6 +13,8 @@ return new class extends Migration
             $table->string('ticket_number')->nullable()->unique();
             $table->text('internal_notes')->nullable();
             $table->string('intake_type')->default('walk_in');
+            // A ticket may carry only a title; the description is optional at intake.
+            $table->text('description')->nullable()->change();
         });
 
         Schema::table('devices', function (Blueprint $table) {
