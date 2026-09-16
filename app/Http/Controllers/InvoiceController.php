@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\InvoiceStatus;
 use App\Models\Invoice;
 use App\Models\Ticket;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class InvoiceController extends Controller
 {
@@ -42,5 +44,39 @@ class InvoiceController extends Controller
 
         return to_route('tickets.show', $ticket)
             ->with('success', 'Invoice generated from billable work.');
+    }
+
+    /**
+     * Record the customer's approval of the estimate/invoice and clear the
+     * approval gate on the ticket's billable work.
+     */
+    public function update(Request $request, Ticket $ticket): RedirectResponse
+    {
+        abort_unless($ticket->business_id === $request->user()->business_id, 403);
+
+        $invoice = $ticket->invoice()->first();
+
+        if ($invoice === null) {
+            return to_route('tickets.show', $ticket)
+                ->withErrors(['approve' => 'Generate an invoice from the billable work before approving.']);
+        }
+
+        if ($invoice->status !== InvoiceStatus::Draft) {
+            return to_route('tickets.show', $ticket)
+                ->withErrors(['approve' => 'Only a draft invoice can be approved.']);
+        }
+
+        if ($invoice->total <= 0) {
+            return to_route('tickets.show', $ticket)
+                ->withErrors(['approve' => 'There is no billable work to approve.']);
+        }
+
+        DB::transaction(function () use ($invoice, $ticket) {
+            $invoice->approve();
+            $ticket->tasks()->billable()->update(['approved_at' => now()]);
+        });
+
+        return to_route('tickets.show', $ticket)
+            ->with('success', 'Estimate approved. The ticket is cleared for repair.');
     }
 }

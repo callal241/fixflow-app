@@ -56,6 +56,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('tickets/{ticket}/tasks/{task}', [TaskController::class, 'destroy'])->name('tickets.tasks.destroy');
 
     Route::post('tickets/{ticket}/invoice', [InvoiceController::class, 'store'])->name('tickets.invoice.store');
+    Route::post('tickets/{ticket}/invoice/approve', [InvoiceController::class, 'update'])->name('tickets.invoice.approve');
     Route::post('tickets/{ticket}/invoice/adjustments', [AdjustmentController::class, 'store'])->name('tickets.invoice.adjustments.store');
     Route::delete('tickets/{ticket}/invoice/adjustments/{adjustment}', [AdjustmentController::class, 'destroy'])->name('tickets.invoice.adjustments.destroy');
     Route::post('tickets/{ticket}/invoice/transactions', [TransactionController::class, 'store'])->name('tickets.invoice.transactions.store');

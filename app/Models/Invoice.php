@@ -6,6 +6,7 @@ use App\Enums\AdjustmentType;
 use App\Enums\InvoiceStatus;
 use App\Enums\TransactionType;
 use App\Models\Concerns\BelongsToBusiness;
+use App\Models\Concerns\HasApproval;
 use App\Models\Concerns\HasDueDate;
 use App\Models\Concerns\HasProgress;
 use App\Models\Concerns\HasStatus;
@@ -16,6 +17,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\DB;
 
 #[ObservedBy([InvoiceObserver::class])]
 class Invoice extends Model
@@ -24,7 +26,7 @@ class Invoice extends Model
      * @use HasFactory<\Database\Factories\InvoiceFactory>
      * @use HasStatus<\App\Enums\InvoiceStatus>
      */
-    use BelongsToBusiness, HasDueDate, HasFactory, HasProgress, HasStatus;
+    use BelongsToBusiness, HasApproval, HasDueDate, HasFactory, HasProgress, HasStatus;
 
     /**
      * The model's default values for attributes.
@@ -52,6 +54,7 @@ class Invoice extends Model
         'refunded_amount',
         'due_date',
         'status',
+        'approved_at',
     ];
 
     /**
@@ -248,6 +251,32 @@ class Invoice extends Model
     }
 
     /**
+     * Record that the customer approved the estimate, then re-sync the totals
+     * (to capture any work added since the last generation) and status.
+     *
+     * Approval is an authorization, not a payment: the money status still
+     * reflects paid/refunded amounts, while the invoice itself surfaces as
+     * "Sent" once approved and unpaid (see {@see getComputedStatus()}).
+     * Idempotent: re-approving an already approved invoice is a no-op.
+     */
+    public function approve(): self
+    {
+        return DB::transaction(function () {
+            if (! $this->isApproved()) {
+                $this->forceFill(['approved_at' => now()]);
+            }
+
+            // Capture any billable work added since the invoice was last
+            // generated so the approved total is accurate.
+            $this->fillTaskTotal()->fillOrderTotal()->fillAdjustmentAmounts();
+
+            $this->syncTotal()->fillStatus()->save();
+
+            return $this;
+        });
+    }
+
+    /**
      * Calculate the appropriate invoice status based on financial amounts.
      */
     private function getComputedStatus(): InvoiceStatus
@@ -264,6 +293,12 @@ class Invoice extends Model
 
         // If there are partial payments, status is Sent
         if ($this->paid_amount > 0) {
+            return InvoiceStatus::Sent;
+        }
+
+        // If the customer approved the estimate, treat it as issued (Sent)
+        // even with no payments yet, so it does not revert to Draft.
+        if ($this->approved_at !== null) {
             return InvoiceStatus::Sent;
         }
 

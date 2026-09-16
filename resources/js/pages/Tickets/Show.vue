@@ -86,6 +86,7 @@ interface Invoice {
     refunded_amount: number;
     balance: number;
     due_date: string | null;
+    approved_at: string | null;
     transactions: { id: number; type: string; method: string; amount: number; note: string | null; created_at: string | null }[];
     adjustments: { id: number; type: string; reason: string; amount: number | null; percentage: number | null; note: string | null }[];
 }
@@ -184,6 +185,13 @@ const removePart = (id: number) => {
 
 const invoiceForm = useForm({ due_date: '' });
 const generateInvoice = () => invoiceForm.post(route('tickets.invoice.store', props.ticket.id));
+
+const approveForm = useForm({});
+const approveInvoice = () => approveForm.post(route('tickets.invoice.approve', props.ticket.id));
+// Only a draft invoice with billable work can be approved.
+const canApproveInvoice = computed(() =>
+    !!props.invoice && props.invoice.status === 'draft' && Number(props.invoice.total) > 0,
+);
 
 const adjustmentForm = useForm({
     type: 'discount',
@@ -526,9 +534,20 @@ const reasonForType = (type: string): string[] => {
                         >
                             {{ invoice.status }}
                         </span>
+                        <span
+                            v-if="invoice?.approved_at"
+                            class="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-950 dark:text-green-300"
+                        >
+                            <CheckCircle2 class="h-3 w-3" />
+                            Approved
+                        </span>
                         <Button v-if="!invoice" variant="outline" size="sm" :disabled="invoiceForm.processing" @click="generateInvoice">
                             <FileText class="mr-1 h-4 w-4" />
                             Generate invoice
+                        </Button>
+                        <Button v-else-if="canApproveInvoice" size="sm" :disabled="approveForm.processing" @click="approveInvoice">
+                            <CheckCircle2 class="mr-1 h-4 w-4" />
+                            Approve estimate
                         </Button>
                         <Button v-else variant="outline" size="sm" :disabled="invoiceForm.processing" @click="generateInvoice">
                             <FileText class="mr-1 h-4 w-4" />
@@ -555,6 +574,8 @@ const reasonForType = (type: string): string[] => {
                             <div class="text-lg font-semibold">{{ invoice ? money(invoice.balance) : money(totals.subtotal) }}</div>
                         </div>
                     </div>
+
+                    <InputError class="mb-4 text-sm" :message="approveForm.errors.approve" />
 
                     <template v-if="invoice">
                         <div class="grid gap-6 lg:grid-cols-2">
