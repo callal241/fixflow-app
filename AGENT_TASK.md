@@ -77,7 +77,12 @@ Sections 1-57 of spec. Milestone 1 = full repair lifecycle with real persistent 
       result, counter/terminal default) + per-business provider in Settings
       -> Payments + balance quick-charge on ticket checkout; PaymentsTest.
       (Refunds/receipts polish = 1h/1j follow-up.)
-- [ ] 1h: Invoices (from ticket, pay, status)
+- [x] 1h: Invoices (from ticket, pay, status)
+      DONE (2026-08-17, commit 0f8e074): Invoices Index (searchable list) +
+      Show (printable invoice document: line items, adjustments, payments,
+      running totals, Print/PDF). invoices.index/show routes, sidebar link,
+      print:hidden on AppSidebar + AppSidebarHeader. 4 InvoicesTest cases.
+      Full suite green (383 passed / 15 skip). Milestone 1 now fully closed.
 - [x] 1i: Testing/checklists (pre/post repair)
       DONE (2026-09-16): pre/post-repair QC checklist on the ticket.
       New ChecklistItem model (business-scoped, non-billable, never affects
@@ -132,7 +137,7 @@ the live container + git history:
   all 200 with real data-page. Full suite in container: 367 passed / 0 failed /
   15 skipped (1460 assertions).
 
-REMAINING Milestone-1 gaps: 1f Inventory ops UI, 1h Invoice UI, 1j E2E verify.
+REMAINING Milestone-1 gaps: NONE (1f, 1h, 1j all done). 1h shipped 0f8e074.
 1j CORE DONE (2026-08-17, commit 77bc813): drove the full repair lifecycle
 end-to-end against the live DB via a kernel probe (intake w/ new customer+
 device+ticket -> billable task -> generate invoice -> approve -> cash payment
@@ -146,8 +151,8 @@ device+ticket -> billable task -> generate invoice -> approve -> cash payment
   DeviceFactory models contain a double quote ('iMac 27"') stored in the
   Inertia data-page attr as \&quot; (assertSee can't match) -> now asserts
   the Inertia props directly. Full suite now deterministic (10/10 green).
-NEXT = 1h Invoices UI (list/detail/preview; pay/refund already work from the
-ticket page). This is the last Milestone-1 gap before full E2E QA (12).
+NEXT = 12 full E2E QA. Milestone 1 (repair lifecycle with real data) is fully
+closed: 1a-1j all done. 1h shipped 0f8e074 (Invoices list + printable detail).
 1f DONE (2026-08-17, commit 6e21403): product edit + receiving + delete.
 ProductController: edit (render) / update (accepts optional absolute "stock"
 so a restock is a standard update; clamped >=0) / destroy. routes:
