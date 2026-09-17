@@ -96,7 +96,13 @@ Sections 1-57 of spec. Milestone 1 = full repair lifecycle with real persistent 
       E2E 17/17 (kernel + auth + CSRF + tenant).
       NOTE: HasType hardcodes column "type" so ChecklistItem casts phase
       manually instead of using the trait.
-- [ ] 1j: End-to-end verification with real data + tests (CURRENT FOCUS)
+- [x] 1j: End-to-end verification with real data + tests
+      DONE (2026-08-17, commit 77bc813): kernel E2E probe through the real
+      DB (intake -> task -> invoice -> approve -> payment -> show) = 20/20.
+      Found + fixed a real 500 on the ticket page after any payment
+      (Collection->latest()); added TicketShowTest; killed a pre-existing
+      flaky intake test (assertSee on a model containing a double quote).
+      Suite deterministic: 369 pass / 0 fail / 15 skip, 10/10 green runs.
 - [x] 2: Global search + command palette (Ctrl/Cmd+K)
       DONE (commit 7283556): SearchController + /search + Ctrl/Cmd+K palette
       across tickets/customers/devices/products; SearchTest.
@@ -127,9 +133,26 @@ the live container + git history:
   15 skipped (1460 assertions).
 
 REMAINING Milestone-1 gaps: 1f Inventory ops UI, 1h Invoice UI, 1j E2E verify.
-CURRENT FOCUS = 1j: drive the full repair lifecycle end-to-end with real data
-(kernel probe + a real browser walkthrough), find the first real break, fix it,
-commit. Then 1f/1h.
+1j CORE DONE (2026-08-17, commit 77bc813): drove the full repair lifecycle
+end-to-end against the live DB via a kernel probe (intake w/ new customer+
+device+ticket -> billable task -> generate invoice -> approve -> cash payment
+-> show page): 20/20 checks passed. It surfaced a real break:
+- TicketController::show() 500'd for ANY ticket with a recorded
+  payment/refund because the invoice payload called ->latest() on the
+  loaded transactions Collection (query method on a Collection). Fixed to a
+  key-based sortByDesc(created_at). Added TicketShowTest (2 regression
+  tests). Also killed a pre-existing flaky test: RepairIntakeTest
+  "ticket detail renders..." used assertSee($device->model), but ~1/3 of
+  DeviceFactory models contain a double quote ('iMac 27"') stored in the
+  Inertia data-page attr as \&quot; (assertSee can't match) -> now asserts
+  the Inertia props directly. Full suite now deterministic (10/10 green).
+NEXT = 1f Inventory: Product model is already rich (stock, reorder_level,
+adjustStock, lowStock/outOfStock scopes, categories, margin) but there is no
+edit/update/destroy, no stock adjust/receiving action, no Products/Edit page.
+Add: product edit/update/destroy, a stock-adjust/receiving action + route +
+UI, and a Products/Edit page; keep category list on index. Verify w/ tests.
+Then 1h Invoice UI (list/detail/preview; pay/refund already work from the
+ticket page).
 ## Audit findings (2026-08-17, verified against repo + live DB)
 
 ### BACKEND â€” WORKING (solid foundation, 329 tests pin the contract)
