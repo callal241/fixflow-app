@@ -5,7 +5,7 @@ import NavUser from '@/components/NavUser.vue';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/vue3';
-import { Smartphone, UserRound, BookOpen, Folder, LayoutGrid, Package, Wrench } from 'lucide-vue-next';
+import { Smartphone, UserRound, BookOpen, Folder, LayoutGrid, Package, Wrench, FileText } from 'lucide-vue-next';
 import AppLogo from './AppLogo.vue';
 
 const mainNavItems: NavItem[] = [
@@ -34,6 +34,11 @@ const mainNavItems: NavItem[] = [
         href: '/tickets',
         icon: Wrench,
     },
+    {
+        title: 'Invoices',
+        href: '/invoices',
+        icon: FileText,
+    },
 ];
 
 const footerNavItems: NavItem[] = [
@@ -51,7 +56,7 @@ const footerNavItems: NavItem[] = [
 </script>
 
 <template>
-    <Sidebar collapsible="icon" variant="inset">
+    <Sidebar collapsible="icon" variant="inset" class="print:hidden">
         <SidebarHeader>
             <SidebarMenu>
                 <SidebarMenuItem>

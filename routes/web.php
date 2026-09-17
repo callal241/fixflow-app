@@ -63,6 +63,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('tickets/{ticket}/checklist-items/{item}', [ChecklistItemController::class, 'update'])->name('tickets.checklist-items.update');
     Route::delete('tickets/{ticket}/checklist-items/{item}', [ChecklistItemController::class, 'destroy'])->name('tickets.checklist-items.destroy');
 
+    Route::get('invoices', [InvoiceController::class, 'index'])->name('invoices.index');
+    Route::get('invoices/{invoice}', [InvoiceController::class, 'show'])->name('invoices.show');
     Route::post('tickets/{ticket}/invoice', [InvoiceController::class, 'store'])->name('tickets.invoice.store');
     Route::post('tickets/{ticket}/invoice/approve', [InvoiceController::class, 'update'])->name('tickets.invoice.approve');
     Route::post('tickets/{ticket}/invoice/adjustments', [AdjustmentController::class, 'store'])->name('tickets.invoice.adjustments.store');
