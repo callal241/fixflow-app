@@ -105,4 +105,86 @@ class ProductController extends Controller
 
         return to_route('products.index')->with('success', "Product \"{$product->name}\" added.");
     }
+
+    /**
+     * Show the form for editing a product.
+     */
+    public function edit(Request $request, Product $product): Response
+    {
+        abort_unless($product->business_id === $request->user()->business_id, 403);
+
+        return Inertia::render('Products/Edit', [
+            'product' => [
+                'id' => $product->id,
+                'name' => $product->name,
+                'sku' => $product->sku,
+                'barcode' => $product->barcode,
+                'condition' => $product->condition,
+                'price' => (float) $product->price,
+                'cost' => (float) $product->cost,
+                'stock' => (int) $product->stock,
+                'reorder_level' => (int) $product->reorder_level,
+                'description' => $product->description,
+                'is_active' => $product->is_active,
+                'category_id' => $product->category_id,
+            ],
+            'categories' => Category::forBusiness($request->user()->business_id)
+                ->active()
+                ->orderBy('name')
+                ->get(['id', 'name']),
+        ]);
+    }
+
+    /**
+     * Update an existing product for the acting business.
+     *
+     * An optional absolute "stock" value carries a receiving/restock or a
+     * count correction (never below zero). Omit it to change details without
+     * touching on-hand quantity.
+     */
+    public function update(Request $request, Product $product): RedirectResponse
+    {
+        abort_unless($product->business_id === $request->user()->business_id, 403);
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'category_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('categories', 'id')->where('business_id', $request->user()->business_id),
+            ],
+            'sku' => ['nullable', 'string', 'max:255'],
+            'barcode' => ['nullable', 'string', 'max:255'],
+            'condition' => ['nullable', 'string', 'max:255'],
+            'price' => ['required', 'numeric', 'min:0'],
+            'cost' => ['nullable', 'numeric', 'min:0'],
+            'reorder_level' => ['nullable', 'integer', 'min:0'],
+            'stock' => ['nullable', 'integer', 'min:0'],
+            'description' => ['nullable', 'string'],
+            'is_active' => ['boolean'],
+        ]);
+
+        $changes = $validated;
+        if (array_key_exists('stock', $changes)) {
+            $changes['stock'] = max(0, (int) $changes['stock']);
+        }
+
+        $product->update($changes);
+
+        return to_route('products.index')->with('success', "Product \"{$product->name}\" updated.");
+    }
+
+    /**
+     * Remove a product. Order line items keep their name/price snapshot
+     * (orders.product_id is nullOnDelete), so nothing downstream breaks.
+     */
+    public function destroy(Request $request, Product $product): RedirectResponse
+    {
+        abort_unless($product->business_id === $request->user()->business_id, 403);
+
+        $name = $product->name;
+        $product->delete();
+
+        return to_route('products.index')->with('success', "Product \"{$name}\" removed.");
+    }
 }
