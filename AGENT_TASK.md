@@ -54,10 +54,15 @@ Sections 1-57 of spec. Milestone 1 = full repair lifecycle with real persistent 
       (model_number/imei/color/storage/carrier), ticket internal_notes + intake_type.
       Verified: fresh DB chain + backfill (121 tickets numbered), live DB reseeded,
       suite green (330 passed / 0 failed / 15 skips).
-- [ ] 1a: Customers (create/edit/list/detail, business accounts, multiple devices/contacts)
-- [ ] 1b: Devices (manufacturer/model/serial/IMEI/etc., device catalog hierarchy)
-- [ ] 1c: Ticket intake (number, fields, photos, notes, authorization, status)
-- [ ] 1d: Ticket workflow (status transitions, notes/timeline, tasks/repairs, parts)
+- [x] 1a: Customers (create/edit/list/detail, business accounts, multiple devices)
+      DONE (commit 7283556): CustomerController + full Customers/ Vue pages.
+- [x] 1b: Devices (manufacturer/model/serial/IMEI/etc., device fields, catalog)
+      DONE (commit 7283556): DeviceController + full Devices/ Vue pages.
+- [x] 1c: Ticket intake (number, fields, notes, authorization, status)
+      DONE (commits 822e498 + 7283556): TicketCreate page + FF-xxxxx number.
+- [x] 1d: Ticket workflow (status, tasks/repairs, parts, orders)
+      DONE (commit 7283556): Tickets/Show (807 lines: tasks, status, orders,
+      payments, invoice, checklist, parts).
 - [x] 1e: Estimates/quotes (options, approve, pricing snapshot)
       DONE (2026-09-16, commit f51a42b): invoice IS the estimate (Draft);
       invoices.approved_at + Invoice::approve() re-syncs totals+status in a
@@ -67,7 +72,11 @@ Sections 1-57 of spec. Milestone 1 = full repair lifecycle with real persistent 
       Tickets/Show.vue "Approve estimate" action + Approved badge; 7 tests.
       (options / multiple quote revisions = future enhancement)
 - [ ] 1f: Inventory (stock, reserved/available, reorder, receiving)
-- [ ] 1g: POS/checkout (payments, deposits, refunds, receipts)
+- [x] 1g: POS/checkout (payments, deposits, refunds, receipts)
+      DONE (commit 7283556): vendor-agnostic PaymentProvider layer (registry,
+      result, counter/terminal default) + per-business provider in Settings
+      -> Payments + balance quick-charge on ticket checkout; PaymentsTest.
+      (Refunds/receipts polish = 1h/1j follow-up.)
 - [ ] 1h: Invoices (from ticket, pay, status)
 - [x] 1i: Testing/checklists (pre/post repair)
       DONE (2026-09-16): pre/post-repair QC checklist on the ticket.
@@ -87,8 +96,10 @@ Sections 1-57 of spec. Milestone 1 = full repair lifecycle with real persistent 
       E2E 17/17 (kernel + auth + CSRF + tenant).
       NOTE: HasType hardcodes column "type" so ChecklistItem casts phase
       manually instead of using the trait.
-- [ ] 1j: End-to-end verification with real data + tests
-- [ ] 2: Global search + command palette (Ctrl/Cmd+K)
+- [ ] 1j: End-to-end verification with real data + tests (CURRENT FOCUS)
+- [x] 2: Global search + command palette (Ctrl/Cmd+K)
+      DONE (commit 7283556): SearchController + /search + Ctrl/Cmd+K palette
+      across tickets/customers/devices/products; SearchTest.
 - [ ] 3: Supplier provider architecture + MobileSentrix/PhoneLCD/iFixit
 - [ ] 4: Parts from ticket (Find Parts), purchase orders, receiving
 - [ ] 5: Communications + customer portal
@@ -101,16 +112,24 @@ Sections 1-57 of spec. Milestone 1 = full repair lifecycle with real persistent 
 - [ ] 12: Full end-to-end QA
 
 ## Current step
-DONE (2026-09-16): Testing/checklists (1i) - see 1i checklist note above.
-Pre/post-repair QC checklist on the ticket (non-billable, tenant-isolated).
-Backend + UI + 9 feature tests + 17-point live in-process E2E all green;
-full suite 367 pass / 0 fail / 15 skip; Vite build green.
-PENDING: docker compose build to bake the new code into the image (code is
-currently live via docker cp only), then commit on docker-preview.
-NEXT (choose by spec value): 1a Customers CRUD and/or 1b Devices CRUD are the
-biggest remaining Milestone-1 gaps (both models+factories+scopes already exist;
-need controller/routes/pages). 1f Inventory, 1g POS/checkout, 1h Invoices UI
-follow. (1e estimate/approve is already done.)
+STATE CORRECTION (2026-08-17): this file was badly stale. The repo is far past the
+"MISSING: Customers/Devices/intake" audit further below. Verified today against
+the live container + git history:
+- 1a/1b Customers+Devices CRUD: CustomerController/DeviceController + full
+  Customers/ & Devices/ Vue pages (Index/Create/Edit/Show) - commit 7283556.
+- 1c/1d Ticket intake + workflow UI: Tickets/Create + Tickets/Show (807 lines:
+  tasks, status, orders, payments, invoice, checklist, parts).
+- 2 Global search (Ctrl/Cmd+K) + 1g payments: commit 7283556.
+- 1e estimate/approval + 1i checklist: DONE, committed (f51a42b, ed87d38).
+- Live check today: container Up 22h; login admin@demo.com/password -> 302
+  dashboard; /customers /devices /tickets /customers/create /tickets/create
+  all 200 with real data-page. Full suite in container: 367 passed / 0 failed /
+  15 skipped (1460 assertions).
+
+REMAINING Milestone-1 gaps: 1f Inventory ops UI, 1h Invoice UI, 1j E2E verify.
+CURRENT FOCUS = 1j: drive the full repair lifecycle end-to-end with real data
+(kernel probe + a real browser walkthrough), find the first real break, fix it,
+commit. Then 1f/1h.
 ## Audit findings (2026-08-17, verified against repo + live DB)
 
 ### BACKEND â€” WORKING (solid foundation, 329 tests pin the contract)

@@ -124,11 +124,15 @@ test('ticket detail renders for the owning business with device and customer', f
 
     $response = $this->actingAs($this->user)->get(route('tickets.show', $ticket));
 
+    // Assert the Inertia props directly rather than raw HTML: some device
+    // models contain a double quote (e.g. 'iMac 27"'), which the data-page
+    // attribute stores as \&quot; — a form assertSee() cannot match.
     $response
         ->assertStatus(200)
-        ->assertSee('Tickets')
-        ->assertSee($customer->name)
-        ->assertSee($device->model);
+        ->assertInertia(fn ($page) => $page
+            ->component('Tickets/Show')
+            ->where('device.model', $device->model)
+            ->where('customer.name', $customer->name));
 });
 
 test('other business staff cannot open a foreign ticket', function () {

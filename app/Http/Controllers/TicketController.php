@@ -279,7 +279,7 @@ class TicketController extends Controller
                 'refunded_amount' => (float) $invoice->refunded_amount,
                 'balance' => (float) $invoice->balance,
                 'due_date' => $invoice->due_date?->toDateString(),
-                'transactions' => $invoice->transactions->latest()->map(fn ($t) => [
+                'transactions' => $invoice->transactions->sortByDesc(fn ($t) => $t->created_at?->timestamp)->map(fn ($t) => [
                     'id' => $t->id,
                     'type' => $t->type->value,
                     'method' => $t->method->value,
