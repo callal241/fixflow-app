@@ -146,13 +146,20 @@ device+ticket -> billable task -> generate invoice -> approve -> cash payment
   DeviceFactory models contain a double quote ('iMac 27"') stored in the
   Inertia data-page attr as \&quot; (assertSee can't match) -> now asserts
   the Inertia props directly. Full suite now deterministic (10/10 green).
-NEXT = 1f Inventory: Product model is already rich (stock, reorder_level,
-adjustStock, lowStock/outOfStock scopes, categories, margin) but there is no
-edit/update/destroy, no stock adjust/receiving action, no Products/Edit page.
-Add: product edit/update/destroy, a stock-adjust/receiving action + route +
-UI, and a Products/Edit page; keep category list on index. Verify w/ tests.
-Then 1h Invoice UI (list/detail/preview; pay/refund already work from the
-ticket page).
+NEXT = 1h Invoices UI (list/detail/preview; pay/refund already work from the
+ticket page). This is the last Milestone-1 gap before full E2E QA (12).
+1f DONE (2026-08-17, commit 6e21403): product edit + receiving + delete.
+ProductController: edit (render) / update (accepts optional absolute "stock"
+so a restock is a standard update; clamped >=0) / destroy. routes:
+products.edit GET, products.update PUT, products.destroy DELETE.
+Products/Edit.vue (new). Products/Index.vue: per-row Edit/Receive/Remove;
+Receive = inline row w/ live "New on-hand" preview. ProductTest: 10 tests.
+NOTE: first attempt used a dedicated adjustStock() action, but FoundationTest
+runs Pest's built-in laravel preset whose controller-method whitelist is fixed
+(index/show/create/store/edit/update/destroy/...) and can't be extended w/o
+editing vendor; only adjustStock violated it, so receiving is modelled as a
+standard update. Full suite 379 pass / 0 fail / 15 skip. Docker image rebuilt
++ recreated; live smoke test: /products + /products/{id}/edit both 200.
 ## Audit findings (2026-08-17, verified against repo + live DB)
 
 ### BACKEND â€” WORKING (solid foundation, 329 tests pin the contract)
