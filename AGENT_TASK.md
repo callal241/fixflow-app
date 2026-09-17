@@ -32,6 +32,8 @@ validation + permissions. Tenant isolation is critical.
 - Container `fixflow-app`: app /app, DB volume `workrepairpossystem_fixflow-db`:/data,
   HTTP http://127.0.0.1:8790 (port 80 in container).
 - Tests: `docker exec fixflow-app sh -c "cd /app && php artisan test --compact"`
+- TEST GOTCHA: Inertia JSON coerces whole floats to ints (100.0 -> 100), so
+  assert float props with a tolerance closure, never === (bit 1f + 1h again).
 - Rebuild: `docker compose build` (Start-Job â†’ C:\fixflow-src\buildN.log; poll) â†’
   `docker rm -f fixflow-app` â†’ `docker compose up -d` â†’ verify. Compose warnings to stderr
   are harmless (NativeCommandError).
