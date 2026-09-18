@@ -194,5 +194,87 @@ $birdCount = count($p['tickets']['data'] ?? $p['tickets'] ?? []);
 check('Second Bird sees own /tickets', $st == 200 && component($bd) == 'Tickets/Index',
     "(http $st, rows=$birdCount)");
 
+echo "\n=== 5) SUPPLIERS (milestone 3) ===\n";
+// 5a) Page renders the Suppliers component with provider metadata.
+[$st, $bd, , $jar] = grab('GET', '/suppliers', $jar);
+$sp = props($bd);
+check('GET /suppliers renders Suppliers/Index',
+    $st == 200 && component($bd) == 'Suppliers/Index',
+    "(http $st, comp=" . component($bd) . ")");
+check('suppliers page exposes all 4 providers with metadata',
+    isset($sp['suppliers']['ifixit'], $sp['suppliers']['manual'],
+        $sp['suppliers']['mobilesentrix'], $sp['suppliers']['phonelcd'])
+    && $sp['suppliers']['ifixit']['configured'] === true
+    && $sp['suppliers']['manual']['configured'] === true
+    && $sp['suppliers']['mobilesentrix']['configured'] === false,
+    "ifixit=" . var_export($sp['suppliers']['ifixit']['configured'] ?? null, true)
+    . " manual=" . var_export($sp['suppliers']['manual']['configured'] ?? null, true)
+    . " mobilesentrix=" . var_export($sp['suppliers']['mobilesentrix']['configured'] ?? null, true));
+
+// 5b) PUT persists a configured choice (manual) and the search endpoint then
+//     serves that tenant's supplier as a graceful, non-crashing failure.
+[, , , $jar] = grab('PUT', '/suppliers', $jar, ['supplier_provider_id' => 'manual'], true);
+$after = props(grab('GET', '/suppliers', $jar)[1])['business']['supplier_provider_id'] ?? null;
+check('PUT /suppliers persists supplier_provider_id=manual', $after === 'manual',
+    "(stored=" . var_export($after, true) . ")");
+
+// The search endpoint (JSON) resolves the acting tenant's active supplier.
+$ch = curl_init();
+curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => 1,
+    CURLOPT_HTTPHEADER => ['Accept: application/json'],
+    CURLOPT_URL => 'http://127.0.0.1:80/suppliers/search?q=' . urlencode('iphone 13 screen') . '&limit=5',
+    CURLOPT_COOKIE => cookieHeader($jar),
+    CURLOPT_TIMEOUT => 25,
+]);
+$rawJson = curl_exec($ch);
+$code = curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+curl_close($ch);
+$decoded = json_decode($rawJson, true);
+check('GET /suppliers/search (manual) returns graceful JSON',
+    $code == 200 && is_array($decoded) && ($decoded['supplier'] ?? null) === 'manual'
+    && ($decoded['success'] ?? null) === false && isset($decoded['failure_reason']),
+    "(http $code, supplier=" . ($decoded['supplier'] ?? '?')
+    . ", success=" . var_export($decoded['success'] ?? null, true)
+    . ", reason=" . substr((string)($decoded['failure_reason'] ?? ''), 0, 60) . ")");
+
+// 5c) Reset to the default (ifixit). Live search returns valid JSON; if the
+//     container has outbound net we get real offers, otherwise a graceful
+//     failure -- either way it is HTTP 200 with the expected shape.
+[, , , $jar] = grab('PUT', '/suppliers', $jar, ['supplier_provider_id' => null], true);
+$ch = curl_init();
+curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => 1,
+    CURLOPT_HTTPHEADER => ['Accept: application/json'],
+    CURLOPT_URL => 'http://127.0.0.1:80/suppliers/search?q=' . urlencode('iphone 13 screen') . '&limit=5',
+    CURLOPT_COOKIE => cookieHeader($jar),
+    CURLOPT_TIMEOUT => 25,
+]);
+$rawJson2 = curl_exec($ch);
+$code2 = curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+curl_close($ch);
+$d2 = json_decode($rawJson2, true);
+check('GET /suppliers/search (default ifixit) returns valid JSON contract',
+    $code2 == 200 && is_array($d2) && ($d2['supplier'] ?? null) === 'ifixit'
+    && is_bool($d2['success'] ?? null) && isset($d2['count']),
+    "(http $code2, supplier=" . ($d2['supplier'] ?? '?')
+    . ", success=" . var_export($d2['success'] ?? null, true)
+    . ", count=" . ($d2['count'] ?? '?')
+    . ", first=" . ($d2['offers'][0]['name'] ?? '-') . ")");
+
+// 5d) Unauthenticated search is gated.
+$ch = curl_init();
+curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => 1,
+    CURLOPT_HTTPHEADER => ['Accept: application/json'],
+    CURLOPT_URL => 'http://127.0.0.1:80/suppliers/search?q=iphone',
+    CURLOPT_TIMEOUT => 15,
+]);
+$g = curl_exec($ch);
+$gc = curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+curl_close($ch);
+check('GET /suppliers/search logged out is gated (401/redirect)',
+    in_array($gc, [302, 401], true), "(http $gc)");
+
 echo "\nRESULT: $pass passed, $fail failed\n";
 exit($fail > 0 ? 1 : 0);

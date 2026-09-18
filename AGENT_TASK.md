@@ -127,7 +127,43 @@ Sections 1-57 of spec. Milestone 1 = full repair lifecycle with real persistent 
 - [x] 2: Global search + command palette (Ctrl/Cmd+K)
       DONE (commit 7283556): SearchController + /search + Ctrl/Cmd+K palette
       across tickets/customers/devices/products; SearchTest.
-- [ ] 3: Supplier provider architecture + MobileSentrix/PhoneLCD/iFixit
+- [x] 3: Supplier provider architecture + MobileSentrix/PhoneLCD/iFixit
+      DONE (2026-08-17): vendor-agnostic SupplierProvider layer, mirrors the
+      Payments architecture. app/Suppliers/: SupplierProvider contract,
+      PartOffer + PartSearchResult value objects (success/failure semantics,
+      toPayload), UnknownSupplierException, SupplierProviderRegistry
+      (resolve/for-business w/ configured fallback to default, options() with
+      label+description+configured+hint). Providers: HttpSupplierProvider
+      (shared curl/status/json/parse), IFixitProvider (REAL: public
+      /suggest/{query}, no key, maps guide/part rows, price+stock stay null
+      because the API provides none -- never invented), MobileSentrixProvider
+      + PhoneLcdProvider (B2B, key-driven; honest isConfigured()=false +
+      setup hint until MOBILESENTRIX_*/PHONELCD_* env present; fail gracefully,
+      never crash), ManualSupplierProvider (guaranteed fallback). config/
+      suppliers.php gateways; AppServiceProvider binds registry singleton;
+      businesses.supplier_provider_id migration + Business fillable.
+      SupplierController (index page + update persist w/ unconfigured->null
+      normalisation) + SupplierSearchController::index (JSON parts search;
+      separate controller because Pest's laravel arch preset whitelists
+      controller method names and 'search' is not one -- same constraint that
+      shaped 1f receiving). Routes: GET suppliers, PUT suppliers, GET
+      suppliers/search. Frontend: Suppliers/Index.vue (provider picker + live
+      search, mirrors Business.vue + SearchCommand.vue) + sidebar link.
+      Tests: SuppliersTest 23 cases -- registry resolve/fallback/options,
+      iFixit REAL HTTP path against a recorded fixture served by php -S (no
+      live net in tests; exercises curl->status->json->parse end to end),
+      non-2xx + non-JSON upstream surface as failure, B2B unconfigured/configured
+      + parse, VOs, page render, search endpoint (tenant-scoped, auth,
+      validation), update persist+normalisation. NOTE: the search endpoint
+      reads the acting tenant's business per request; a PUT that reuses one
+      acting User instance across many requests in a test caches user->business,
+      so the null-clear assertion uses a fresh user (real requests build a
+      fresh user). Full suite green 408 pass / 0 fail / 15 skip (1742 asserts).
+      Live HTTP smoke (smoke.php section 5, 6 checks) all PASS incl. real
+      iFixit search returning 4 real offers over the container's live net.
+      MobileSentrix public endpoint is behind Cloudflare (403 to bots) and
+      PhoneLCD has no usable public API -- both are wired as key-driven B2B
+      gateways that the user configures with real partner credentials later.
 - [ ] 4: Parts from ticket (Find Parts), purchase orders, receiving
 - [ ] 5: Communications + customer portal
 - [ ] 6: Reporting + dashboards (technician/store)
@@ -150,9 +186,13 @@ Sections 1-57 of spec. Milestone 1 = full repair lifecycle with real persistent 
       385 pass / 0 fail / 15 skip (1631 assertions).
 
 ## Current step
-NEXT = Milestone 2 items, in order: 3 (suppliers), 4 (Find Parts + POs +
-receiving, incl. reserved/available stock), 5 (comms + customer portal),
-6 (reporting/dashboards), 7 (automations/notifications), 8 (RBAC/audit),
+Milestone 3 (supplier provider architecture) DONE (2026-08-17) - see checklist
+entry 3 above for the full write-up. Suite green 408/15, live smoke 23/23.
+NEXT = Milestone 2 item 4: Find Parts from ticket + purchase orders +
+receiving (incl. reserved/available stock). The SupplierProvider layer from
+milestone 3 is the hook Find Parts plugs into (per-tenant active supplier).
+Remaining Milestone-2 order after 4: 5 (comms + customer portal), 6
+(reporting/dashboards), 7 (automations/notifications), 8 (RBAC/audit),
 then 9-11. 12 (full E2E QA) is DONE - see checklist entry above.
 
 HTTP E2E PROCEDURE (proven 2026-08-17, see smoke.php - reuse it):

@@ -30,6 +30,7 @@ class Business extends Model
         'currency',
         'tax_rate',
         'payment_provider_id',
+        'supplier_provider_id',
         'logo_path',
         'notes',
     ];

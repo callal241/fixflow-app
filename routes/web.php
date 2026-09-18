@@ -9,6 +9,8 @@ use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\SearchController;
+use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\SupplierSearchController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\TransactionController;
@@ -25,6 +27,10 @@ Route::get('dashboard', [DashboardController::class, 'index'])
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('search', [SearchController::class, 'index'])->name('search');
+
+    Route::get('suppliers', [SupplierController::class, 'index'])->name('suppliers.index');
+    Route::put('suppliers', [SupplierController::class, 'update'])->name('suppliers.update');
+    Route::get('suppliers/search', [SupplierSearchController::class, 'index'])->name('suppliers.search');
 
     Route::get('products', [ProductController::class, 'index'])->name('products.index');
     Route::get('products/create', [ProductController::class, 'create'])->name('products.create');
