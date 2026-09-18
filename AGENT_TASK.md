@@ -39,8 +39,10 @@ validation + permissions. Tenant isolation is critical.
   are harmless (NativeCommandError).
 - PowerShell: no heredocs (file_editor + docker cp), no &&, chain with ;, timeout<=120s,
   empty output = finished. UNIX grep/find â†’ `wsl -e bash -lc '...'` on /mnt/c/... paths.
-- HTTP testing: curl INSIDE container (127.0.0.1:80); XSRF via cookie from /login,
-  send as X-XSRF-TOKEN (URL-decoded); re-read cookie after login (rotates).
+- HTTP testing: curl INSIDE container (127.0.0.1:80). Login CSRF dance:
+  send captured cookies back RAW (NOT http_build_query - URL-encoding breaks
+  EncryptCookies -> 419); X-XSRF-TOKEN header = rawurldecode of the cookie.
+  See smoke.php + "Current step" for the full proven procedure.
 - Long commands: Start-Job + log file + poll. Never block > ~60s.
 
 ## Implementation map â€” FILL DURING AUDIT (Milestone 0)
@@ -73,7 +75,19 @@ Sections 1-57 of spec. Milestone 1 = full repair lifecycle with real persistent 
       draft-only + billable-work guards; clears billable tasks' approval gate;
       Tickets/Show.vue "Approve estimate" action + Approved badge; 7 tests.
       (options / multiple quote revisions = future enhancement)
-- [ ] 1f: Inventory (stock, reserved/available, reorder, receiving)
+- [x] 1f: Inventory (stock, reserved/available, reorder, receiving)
+      DONE (2026-08-17, commit 6e21403): product edit + receiving + delete.
+      ProductController: edit (render) / update (accepts optional absolute
+      "stock" so a restock is a standard update; clamped >=0) / destroy.
+      routes: products.edit GET, products.update PUT, products.destroy DELETE.
+      Products/Edit.vue (new). Products/Index.vue: per-row Edit/Receive/Remove;
+      Receive = inline row w/ live "New on-hand" preview. ProductTest: 10 tests.
+      NOTE: first attempt used a dedicated adjustStock() action, but
+      FoundationTest runs Pest's built-in laravel preset whose controller-method
+      whitelist is fixed (index/show/create/store/edit/update/destroy/...) and
+      can't be extended w/o editing vendor; only adjustStock violated it, so
+      receiving is modelled as a standard update.
+      (reserved/available columns + reorder thresholds = later, with 4/POs.)
 - [x] 1g: POS/checkout (payments, deposits, refunds, receipts)
       DONE (commit 7283556): vendor-agnostic PaymentProvider layer (registry,
       result, counter/terminal default) + per-business provider in Settings
@@ -122,10 +136,40 @@ Sections 1-57 of spec. Milestone 1 = full repair lifecycle with real persistent 
 - [ ] 9: Multi-location, appointments, mail-in
 - [ ] 10: Device Bridge
 - [ ] 11: API/webhooks, accounting adapters
-- [ ] 12: Full end-to-end QA
+- [x] 12: Full end-to-end QA
+      DONE (2026-08-17, commit 0b3acc1): smoke.php drives REAL HTTP against the
+      container (127.0.0.1:80): login CSRF dance -> all list pages on seeded
+      data -> every detail page -> auth gating (logged-out 302 to /login) ->
+      tenant isolation (Second Bird 403 on a FixFlow ticket, sees own 3).
+      17/17 pass. Found + fixed 3 real-data bugs the in-process suite missed:
+      (1) InvoiceController show() adjustments select lacked invoice_id (500
+      on any invoice with an adjustment); (2) Device $appends=device_progress
+      had no matching accessor (ticketProgress) -> device detail 500; (3)
+      DeviceController malformed eager-load 'tickets.device.customer.id'.
+      Added DeviceTest (2) + adjustment to InvoicesTest fixture. Suite:
+      385 pass / 0 fail / 15 skip (1631 assertions).
 
 ## Current step
-STATE CORRECTION (2026-08-17): this file was badly stale. The repo is far past the
+NEXT = Milestone 2 items, in order: 3 (suppliers), 4 (Find Parts + POs +
+receiving, incl. reserved/available stock), 5 (comms + customer portal),
+6 (reporting/dashboards), 7 (automations/notifications), 8 (RBAC/audit),
+then 9-11. 12 (full E2E QA) is DONE - see checklist entry above.
+
+HTTP E2E PROCEDURE (proven 2026-08-17, see smoke.php - reuse it):
+run `docker cp smoke.php fixflow-app:/tmp/smoke.php && docker exec
+fixflow-app php /tmp/smoke.php`. The login CSRF dance that WORKS:
+  GET /login, capture BOTH cookies; send them back RAW in the Cookie header
+  (NEVER http_build_query - it URL-encodes values and EncryptCookies can't
+  decrypt the cookie -> session lost -> 419); X-XSRF-TOKEN header =
+  rawurldecode() of the XSRF-TOKEN cookie value (axios does exactly this).
+  POST /login -> 302 /dashboard. The XSRF-TOKEN cookie rotates, re-read it
+  after each response.
+  NOTE: /app is baked into the image (only /data is a volume) - to test a
+  source change live: docker cp <file> fixflow-app:/app/... (no opcache
+  reload needed); to persist: rebuild the image (docker compose build).
+
+STATE (was stale, corrected 2026-08-17): this file was badly stale. The repo
+is far past the
 "MISSING: Customers/Devices/intake" audit further below. Verified today against
 the live container + git history:
 - 1a/1b Customers+Devices CRUD: CustomerController/DeviceController + full
