@@ -31,6 +31,7 @@ class Product extends Model
         'price',
         'cost',
         'stock',
+        'reserved_stock',
         'reorder_level',
         'is_active',
     ];
@@ -44,6 +45,7 @@ class Product extends Model
         'price' => 'float',
         'cost' => 'float',
         'stock' => 'integer',
+        'reserved_stock' => 'integer',
         'reorder_level' => 'integer',
         'is_active' => 'boolean',
     ];
@@ -133,6 +135,33 @@ class Product extends Model
     {
         return $this->forceFill([
             'stock' => max(0, $this->stock + $delta),
+        ]);
+    }
+
+    /**
+     * Stock available to sell/allocate = on-hand minus what open tickets hold.
+     */
+    public function getAvailableAttribute(): int
+    {
+        return max(0, (int) $this->stock - (int) $this->reserved_stock);
+    }
+
+    /**
+     * Determine if the product has at least $quantity units available.
+     */
+    public function hasAvailable(int $quantity): bool
+    {
+        return $this->available >= $quantity;
+    }
+
+    /**
+     * Reserve stock for an open ticket. Clamps so reservations can never
+     * exceed on-hand stock (reserved may not go negative either).
+     */
+    public function reserveStock(int $delta): self
+    {
+        return $this->forceFill([
+            'reserved_stock' => max(0, min((int) $this->stock, (int) $this->reserved_stock + $delta)),
         ]);
     }
 

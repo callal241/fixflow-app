@@ -164,7 +164,41 @@ Sections 1-57 of spec. Milestone 1 = full repair lifecycle with real persistent 
       MobileSentrix public endpoint is behind Cloudflare (403 to bots) and
       PhoneLCD has no usable public API -- both are wired as key-driven B2B
       gateways that the user configures with real partner credentials later.
-- [ ] 4: Parts from ticket (Find Parts), purchase orders, receiving
+- [x] 4: Parts from ticket (Find Parts), purchase orders, receiving
+      DONE (2026-09-18): Find Parts + parts-order lifecycle on the ticket.
+      Schema: orders +is_purchase bool +status (OrderStatus
+      new/shipped/received/cancelled) +received_at; products +reserved_stock
+      (available = stock - reserved_stock) via migration 2026_09_18.
+      OrderObserver stock rules: a catalog product line RESERVES stock on
+      create (reserved +qty, on-hand unchanged); a purchase line SKIPS the
+      availability guard (it exists to ADD stock); receiving SETTLES the
+      reservation (consumes exactly that line's reserved qty; a purchase that
+      links a product adds stock to on-hand); cancelling/deleting an
+      unresolved line RELEASES the reservation; received/cancelled lines are
+      marked settled so a later delete never double-moves stock.
+      OrderController@store accepts catalog (product_id) + free-form supplier
+      lines (name required only when product_id absent, price optional,
+      is_purchase flag) with tenant 403 + availability guard. Dedicated
+      OrderReceiveController (PATCH .../receive) + OrderCancelController
+      (PATCH .../cancel) -- separate controllers because the arch() preset
+      whitelists controller method names and receive/cancel are not among
+      them (same constraint that shaped 1f receiving + 3 search).
+      TicketController@show now exposes products (stock/reserved_stock/
+      available) + orders (is_purchase/status/received_at). Frontend
+      Tickets/Show.vue: "Find parts" live supplier search (reuses the
+      suppliers.search JSON endpoint, 300ms debounce, offer rows with
+      Add-to-order prefill -> is_purchase=true), extended add-part form
+      (own-shelf product select showing available count, free-form part name,
+      unit price, "purchasing from supplier" checkbox), per-line status +
+      purchase badges, Receive + Cancel actions + reserved/available display.
+      Tests: PartsOrderTest 19 (create catalog/free-form/purchase,
+      reservation + availability guard, receive/cancel flows,
+      delete-after-receive no double-move, concurrent reservation
+      settlement) + OrderTest fillable/cast updates. Full suite 427 pass /
+      0 fail / 15 skip (1827 asserts). Live smoke section 6 (8 checks) all
+      PASS on the rebuilt container: payload shape, free-form + purchase
+      create, cancel (non-billable), receive (received_at stamped), reserve
+      +1 then release back on delete.
 - [ ] 5: Communications + customer portal
 - [ ] 6: Reporting + dashboards (technician/store)
 - [ ] 7: Automations, notifications
@@ -186,13 +220,13 @@ Sections 1-57 of spec. Milestone 1 = full repair lifecycle with real persistent 
       385 pass / 0 fail / 15 skip (1631 assertions).
 
 ## Current step
-Milestone 3 (supplier provider architecture) DONE (2026-08-17) - see checklist
-entry 3 above for the full write-up. Suite green 408/15, live smoke 23/23.
-NEXT = Milestone 2 item 4: Find Parts from ticket + purchase orders +
-receiving (incl. reserved/available stock). The SupplierProvider layer from
-milestone 3 is the hook Find Parts plugs into (per-tenant active supplier).
-Remaining Milestone-2 order after 4: 5 (comms + customer portal), 6
-(reporting/dashboards), 7 (automations/notifications), 8 (RBAC/audit),
+Milestone 3 DONE; **Milestone 2 item 4 (Find Parts / purchase orders /
+receiving + reserved-stock) DONE (2026-09-18)** -- see checklist entry 4 for
+the full write-up. Full suite green 427 pass / 15 skip (1827 asserts); live
+smoke 31/31 (added section 6, 8 parts checks) on the rebuilt container.
+NEXT = Milestone 2 item 5: Communications + customer portal.
+Remaining Milestone-2 order after 5: 6 (reporting/dashboards), 7
+(automations/notifications), 8 (RBAC/audit),
 then 9-11. 12 (full E2E QA) is DONE - see checklist entry above.
 
 HTTP E2E PROCEDURE (proven 2026-08-17, see smoke.php - reuse it):

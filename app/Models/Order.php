@@ -46,8 +46,10 @@ class Order extends Model
         'price',
         'cost',
         'is_billable',
+        'is_purchase',
         'status',
         'approved_at',
+        'received_at',
     ];
 
     /**
@@ -59,6 +61,8 @@ class Order extends Model
         'quantity' => 'integer',
         'price' => 'float',
         'cost' => 'float',
+        'is_purchase' => 'boolean',
+        'received_at' => 'datetime',
     ];
 
     // ACCESSORS ///////////////////////////////////////////////////////////////////////////////////

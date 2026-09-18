@@ -233,7 +233,7 @@ class TicketController extends Controller
             ]);
 
         $orders = $ticket->orders()
-            ->with('product:id,name,sku,price,stock')
+            ->with('product:id,name,sku,price,stock,reserved_stock')
             ->latest()
             ->get()
             ->map(fn ($order) => [
@@ -245,7 +245,9 @@ class TicketController extends Controller
                 'price' => (float) $order->price,
                 'cost' => (float) $order->cost,
                 'is_billable' => $order->is_billable,
+                'is_purchase' => (bool) $order->is_purchase,
                 'status' => $order->status->value,
+                'received_at' => $order->received_at?->toDateTimeString(),
                 'product_id' => $order->product_id,
                 'product' => $order->product ? [
                     'id' => $order->product->id,
@@ -253,6 +255,8 @@ class TicketController extends Controller
                     'sku' => $order->product->sku,
                     'price' => (float) $order->product->price,
                     'stock' => $order->product->stock,
+                    'reserved_stock' => (int) $order->product->reserved_stock,
+                    'available' => (int) $order->product->available,
                 ] : null,
             ]);
 
@@ -260,7 +264,16 @@ class TicketController extends Controller
         $products = Product::forBusiness($request->user()->business_id)
             ->active()
             ->orderBy('name')
-            ->get(['id', 'name', 'sku', 'price', 'stock']);
+            ->get(['id', 'name', 'sku', 'price', 'stock', 'reserved_stock'])
+            ->map(fn (Product $product) => [
+                'id' => $product->id,
+                'name' => $product->name,
+                'sku' => $product->sku,
+                'price' => (float) $product->price,
+                'stock' => $product->stock,
+                'reserved_stock' => (int) $product->reserved_stock,
+                'available' => (int) $product->available,
+            ]);
 
         $invoice = $ticket->invoice()->first();
         $taskTotal = (float) $ticket->tasks()->billable()->sum('cost');

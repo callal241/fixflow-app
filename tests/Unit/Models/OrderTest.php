@@ -38,13 +38,17 @@ testModelStructure(
         'price',
         'cost',
         'is_billable',
+        'is_purchase',
         'status',
         'approved_at',
+        'received_at',
     ],
     casts: [
         'quantity' => 'integer',
         'price' => 'float',
         'cost' => 'float',
+        'is_purchase' => 'boolean',
+        'received_at' => 'datetime',
     ]
 );
 

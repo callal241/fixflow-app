@@ -4,8 +4,25 @@ namespace App\Observers;
 
 use App\Enums\OrderStatus;
 use App\Models\Order;
-use App\Models\Product;
 
+/**
+ * Keeps ticket counters, invoice totals, and product stock consistent with an
+ * order's lifecycle.
+ *
+ * Stock model:
+ *  - A line for a catalog product ALLOCATES (reserves) its quantity the moment
+ *    it is added to a ticket: products.reserved_stock rises, so other tickets
+ *    see less available stock while the part is committed to this one.
+ *  - Receiving such a line consumes the reservation (on-hand drops).
+ *  - Cancelling or removing a live line releases the reservation.
+ *  - A purchase line (is_purchase) that points at a catalog product instead
+ *    RESTOCKS it when received: it is incoming stock, not stock on a shelf.
+ *  - Free-form lines (no product_id) and pure sales never touch stock.
+ *
+ * Every stock effect is guarded by product_id (checked first, so mock/VO
+ * contexts short-circuit safely) and by status, so a line that already reached
+ * a terminal state (received/cancelled) is never moved twice.
+ */
 class OrderObserver
 {
     /**
@@ -19,8 +36,7 @@ class OrderObserver
         // Update invoice order total if invoice exists
         $order->ticket->invoice?->fillOrderTotal()->save();
 
-        // Consume stock for catalog product lines.
-        $this->consumeProductStock($order, (int) $order->quantity);
+        $this->reserveProductStock($order, (int) $order->quantity);
     }
 
     /**
@@ -42,21 +58,25 @@ class OrderObserver
             $order->ticket->invoice?->fillOrderTotal()->save();
         }
 
-        // Quantity changed: consume or release the difference.
-        if ($order->wasChanged(['quantity'])) {
-            $diff = (int) $order->getOriginal('quantity') - (int) $order->quantity;
-            $this->adjustProductStock($order, $diff);
+        // Quantity changed on a still-live line: reserve/release the
+        // difference.
+        if ($order->wasChanged(['quantity']) && !$this->isStockSettled($order)) {
+            $diff = (int) $order->quantity - (int) $order->getOriginal('quantity');
+            $this->reserveProductStock($order, $diff);
         }
 
-        // Cancelling releases stock; reopening a cancelled order consumes it again.
+        // Receiving settles the stock effect; cancelling releases the
+        // reservation; reopening a cancelled line re-reserves it.
         if ($statusChanged) {
             $from = $this->asStatus($order->getOriginal('status'));
             $to = $this->asStatus($order->status);
 
-            if ($to === OrderStatus::Cancelled) {
-                $this->adjustProductStock($order, (int) $order->quantity);
-            } elseif ($from === OrderStatus::Cancelled && $to !== null) {
-                $this->adjustProductStock($order, -(int) $order->quantity);
+            if ($to === OrderStatus::Received) {
+                $this->settleReceivedStock($order);
+            } elseif ($to === OrderStatus::Cancelled) {
+                $this->releaseProductStock($order, (int) $order->quantity);
+            } elseif ($from === OrderStatus::Cancelled && $to !== null && $to !== OrderStatus::Received) {
+                $this->reserveProductStock($order, (int) $order->quantity);
             }
         }
     }
@@ -72,11 +92,11 @@ class OrderObserver
         // Update invoice total if invoice exists
         $order->ticket->invoice?->fillOrderTotal()->save();
 
-        // Release stock for the removed product line — but only if it still
-        // holds stock. A cancelled order already had its stock restored, so we
-        // must not restore it a second time.
-        if ($this->asStatus($order->status) !== OrderStatus::Cancelled) {
-            $this->adjustProductStock($order, (int) $order->quantity);
+        // Release the reservation for a still-live product line. A line that
+        // was already received or cancelled had its stock settled, so it must
+        // not move again (no double release).
+        if (!$this->isStockSettled($order)) {
+            $this->releaseProductStock($order, (int) $order->quantity);
         }
     }
 
@@ -94,31 +114,80 @@ class OrderObserver
     }
 
     /**
-     * Consume stock for a product-backed order. The decrement is guarded so
-     * stock can never go negative, even under concurrent sales.
+     * True when the line's stock effects are already fully settled and no
+     * further event should touch stock. A cancelled line had its reservation
+     * released; a received line has either consumed its reservation (own
+     * stock) or restocked (purchase) -- in both cases exactly its own
+     * quantity, so concurrent reservations are unaffected.
      */
-    private function consumeProductStock(Order $order, int $quantity): void
+    private function isStockSettled(Order $order): bool
     {
-        if ($order->product_id === null || $quantity <= 0) {
-            return;
-        }
+        $status = $this->asStatus($order->status);
 
-        Product::whereKey($order->product_id)
-            ->where('stock', '>=', $quantity)
-            ->decrement('stock', $quantity);
+        return $status === OrderStatus::Cancelled || $status === OrderStatus::Received;
     }
 
     /**
-     * Adjust a product-backed order's stock by an arbitrary delta (positive to
-     * restock, negative to consume). Used for quantity changes, cancellations,
-     * and deletions. Clamps at zero via Product::adjustStock().
+     * Reserve stock (release with a negative delta) for a product-backed,
+     * non-purchase line. product_id is checked first so contexts without a
+     * catalog product short-circuit before is_purchase is ever read.
      */
-    private function adjustProductStock(Order $order, int $delta): void
+    private function reserveProductStock(Order $order, int $delta): void
     {
-        if ($order->product_id === null || $delta === 0) {
+        if ($order->product_id === null) {
             return;
         }
 
-        $order->product?->adjustStock($delta)->save();
+        if ($delta === 0 || (bool) $order->is_purchase) {
+            return;
+        }
+
+        $order->product?->reserveStock($delta)->save();
+    }
+
+    /**
+     * Release a reservation back to available stock (funnels through
+     * reserveProductStock so the product_id guard runs first).
+     */
+    private function releaseProductStock(Order $order, int $quantity): void
+    {
+        if ($quantity <= 0) {
+            return;
+        }
+
+        $this->reserveProductStock($order, -$quantity);
+    }
+
+    /**
+     * Settle a received line: own-stock lines consume exactly their reserved
+     * quantity (concurrent reservations on the same product are untouched),
+     * purchase lines restock the linked catalog product.
+     */
+    private function settleReceivedStock(Order $order): void
+    {
+        if ($order->product_id === null) {
+            return;
+        }
+
+        $product = $order->product;
+        if ($product === null) {
+            return;
+        }
+
+        $quantity = (int) $order->quantity;
+        if ($quantity <= 0) {
+            return;
+        }
+
+        if ((bool) $order->is_purchase) {
+            $product->adjustStock($quantity)->save();
+
+            return;
+        }
+
+        $product
+            ->forceFill(['reserved_stock' => max(0, (int) $product->reserved_stock - $quantity)])
+            ->adjustStock(-$quantity)
+            ->save();
     }
 }

@@ -53,8 +53,10 @@ class OrderFactory extends Factory
             'quantity' => rand(1, 2),
             'cost' => fake()->randomFloat(2, 10, 100),
             'is_billable' => true,
+            'is_purchase' => false,
             'status' => OrderStatus::New,
             'approved_at' => now(),
+            'received_at' => null,
         ];
     }
 

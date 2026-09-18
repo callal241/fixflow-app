@@ -1,16 +1,17 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
 import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectItemText, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import {
-    Banknote, ClipboardCheck, FileText, PackagePlus, Plus, Trash2,
+    Banknote, ClipboardCheck, FileText, PackagePlus, Plus, Search, Trash2,
     UserRound, Wrench, CheckCircle2, CreditCard, Zap,
 } from 'lucide-vue-next';
 import { type BreadcrumbItem } from '@/types';
@@ -65,9 +66,11 @@ interface OrderLine {
     price: number;
     cost: number;
     is_billable: boolean;
+    is_purchase: boolean;
     status: string;
+    received_at: string | null;
     product_id: number | null;
-    product: { id: number; name: string; sku: string | null; price: number; stock: number } | null;
+    product: { id: number; name: string; sku: string | null; price: number; stock: number; reserved_stock: number; available: number } | null;
 }
 interface Product {
     id: number;
@@ -75,6 +78,19 @@ interface Product {
     sku: string | null;
     price: number;
     stock: number;
+    reserved_stock: number;
+    available: number;
+}
+interface Offer {
+    supplier: string;
+    name: string;
+    external_id: string | null;
+    url: string | null;
+    image: string | null;
+    price: number | null;
+    stock: number | null;
+    category: string | null;
+    description: string | null;
 }
 interface ChecklistItem {
     id: number;
@@ -203,8 +219,8 @@ const removeChecklistItem = (id: number) => {
 const preItems = computed(() => props.checklist_items.filter((i) => i.phase === 'pre_repair'));
 const postItems = computed(() => props.checklist_items.filter((i) => i.phase === 'post_repair'));
 const checklistGroups = computed(() => [
-    { key: 'pre_repair', title: 'Pre-repair · condition at intake', items: preItems.value },
-    { key: 'post_repair', title: 'Post-repair · QC sign-off', items: postItems.value },
+    { key: 'pre_repair', title: 'Pre-repair Â· condition at intake', items: preItems.value },
+    { key: 'post_repair', title: 'Post-repair Â· QC sign-off', items: postItems.value },
 ].filter((g) => g.items.length > 0 || props.checklist_items.length > 0));
 const checklistProgress = computed(() => {
     const total = props.checklist_items.length;
@@ -219,16 +235,100 @@ const statusToneFor = (status: string): string => ({
 
 const partForm = useForm({
     product_id: null as number | null,
+    name: '',
+    supplier: null as string | null,
+    url: null as string | null,
+    price: null as number | null,
     quantity: 1,
     is_billable: true,
+    is_purchase: false,
 });
 const addPart = () => partForm.post(route('tickets.orders.store', props.ticket.id), {
-    onSuccess: () => { partForm.data.quantity = 1; partForm.data.is_billable = true; partForm.data.product_id = null; },
+    onSuccess: () => {
+        partForm.data.quantity = 1;
+        partForm.data.is_billable = true;
+        partForm.data.is_purchase = false;
+        partForm.data.product_id = null;
+        partForm.data.name = '';
+        partForm.data.supplier = null;
+        partForm.data.url = null;
+        partForm.data.price = null;
+    },
 });
 const removePart = (id: number) => {
     if (confirm('Remove this part?')) {
         partForm.delete(route('tickets.orders.destroy', { ticket: props.ticket.id, order: id }));
     }
+};
+const receivePart = (id: number) =>
+    partForm.patch(route('tickets.orders.receive', { ticket: props.ticket.id, order: id }));
+const cancelPart = (id: number) => {
+    if (confirm('Cancel this part? It will become non-billable and any reserved stock is released.')) {
+        partForm.patch(route('tickets.orders.cancel', { ticket: props.ticket.id, order: id }));
+    }
+};
+
+const partTone: Record<string, string> = {
+    new: 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300',
+    shipped: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
+    received: 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300',
+    cancelled: 'bg-neutral-200 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-500',
+};
+
+// ---- find parts: live supplier search (same endpoint as the Suppliers page) ----
+const findQuery = ref('');
+const findOffers = ref<Offer[]>([]);
+const findSearching = ref(false);
+const findFailure = ref<string | null>(null);
+const findSearchedFor = ref<string | null>(null);
+let findDebounce: ReturnType<typeof setTimeout> | undefined;
+let findSeq = 0;
+
+async function runFindSearch() {
+    const q = findQuery.value.trim();
+    const mySeq = ++findSeq;
+    if (q.length < 2) {
+        findOffers.value = [];
+        findFailure.value = null;
+        findSearchedFor.value = null;
+        return;
+    }
+    findSearching.value = true;
+    try {
+        const res = await fetch(
+            `${route('suppliers.search')}?q=${encodeURIComponent(q)}&limit=8`,
+            { headers: { Accept: 'application/json' }, credentials: 'same-origin' },
+        );
+        const data: { success: boolean; offers: Offer[]; failure_reason: string | null } = await res.json();
+        if (mySeq === findSeq) {
+            findOffers.value = data.offers ?? [];
+            findFailure.value = data.success ? null : (data.failure_reason ?? 'Supplier unavailable.');
+            findSearchedFor.value = q;
+        }
+    } catch {
+        if (mySeq === findSeq) {
+            findFailure.value = 'Could not reach the supplier search.';
+            findOffers.value = [];
+        }
+    } finally {
+        if (mySeq === findSeq) {
+            findSearching.value = false;
+        }
+    }
+}
+
+function onFindInput() {
+    if (findDebounce) clearTimeout(findDebounce);
+    findDebounce = setTimeout(runFindSearch, 300);
+}
+
+const addOffer = (offer: Offer) => {
+    partForm.data.product_id = null;
+    partForm.data.name = offer.name;
+    partForm.data.supplier = offer.supplier || null;
+    partForm.data.url = offer.url;
+    partForm.data.price = offer.price;
+    partForm.data.is_purchase = true;
 };
 
 const invoiceForm = useForm({ due_date: '' });
@@ -308,7 +408,7 @@ const reasonForType = (type: string): string[] => {
                             >
                                 {{ pretty(ticket.status) }}
                             </span>
-                            <span class="text-xs text-muted-foreground capitalize">· {{ ticket.intake_type.replace(/_/g, ' ') }}</span>
+                            <span class="text-xs text-muted-foreground capitalize">Â· {{ ticket.intake_type.replace(/_/g, ' ') }}</span>
                         </div>
                         <p class="text-sm text-muted-foreground">{{ ticket.title }}</p>
                     </div>
@@ -372,7 +472,7 @@ const reasonForType = (type: string): string[] => {
                             <textarea
                                 v-model="ticketForm.internal_notes"
                                 rows="2"
-                                placeholder="Team-only notes…"
+                                placeholder="Team-only notesâ€¦"
                                 class="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                             />
                         </div>
@@ -399,7 +499,7 @@ const reasonForType = (type: string): string[] => {
                         </CardHeader>
                         <CardContent class="flex flex-col gap-1.5 text-sm">
                             <div class="flex justify-between"><span class="text-muted-foreground">Model</span><span>{{ device.brand ? `${device.brand} ` : '' }}{{ device.model }}</span></div>
-                            <div class="flex justify-between"><span class="text-muted-foreground">Serial</span><span class="font-mono text-xs">{{ device.serial_number ?? '—' }}</span></div>
+                            <div class="flex justify-between"><span class="text-muted-foreground">Serial</span><span class="font-mono text-xs">{{ device.serial_number ?? 'â€”' }}</span></div>
                             <div v-if="device.imei" class="flex justify-between"><span class="text-muted-foreground">IMEI</span><span class="font-mono text-xs">{{ device.imei }}</span></div>
                             <div v-if="device.color" class="flex justify-between"><span class="text-muted-foreground">Color</span><span>{{ device.color }}</span></div>
                             <div v-if="device.storage" class="flex justify-between"><span class="text-muted-foreground">Storage</span><span>{{ device.storage }}</span></div>
@@ -448,7 +548,7 @@ const reasonForType = (type: string): string[] => {
                                         >
                                             {{ t.is_billable ? 'billable' : 'not billable' }}
                                         </span>
-                                        <span class="text-xs capitalize text-muted-foreground">· {{ t.status }}</span>
+                                        <span class="text-xs capitalize text-muted-foreground">Â· {{ t.status }}</span>
                                     </div>
                                     <div v-if="t.note" class="mt-0.5 text-xs text-muted-foreground">{{ t.note }}</div>
                                 </div>
@@ -511,54 +611,143 @@ const reasonForType = (type: string): string[] => {
                                 No parts added yet.
                             </div>
 
-                            <div v-for="o in orders" :key="o.id" class="flex items-center gap-3 rounded-lg border p-3">
-                                <div class="flex-1">
-                                    <div class="flex items-center gap-2">
-                                        <span class="text-sm font-medium">{{ o.name }}</span>
-                                        <span
-                                            class="rounded-full px-2 py-0.5 text-xs font-medium capitalize"
-                                            :class="o.is_billable
-                                                ? 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300'
-                                                : 'bg-neutral-100 text-neutral-500 dark:bg-neutral-900'"
-                                        >
-                                            {{ o.is_billable ? 'billable' : 'not billable' }}
-                                        </span>
+                            <div v-for="o in orders" :key="o.id" class="rounded-lg border p-3" :class="o.status === 'cancelled' ? 'opacity-60' : ''">
+                                <div class="flex items-center gap-3">
+                                    <div class="flex-1">
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <span class="text-sm font-medium">{{ o.name }}</span>
+                                            <span
+                                                class="rounded-full px-2 py-0.5 text-xs font-medium capitalize"
+                                                :class="partTone[o.status] ?? 'bg-neutral-100 text-neutral-600'"
+                                            >
+                                                {{ o.status }}
+                                            </span>
+                                            <span
+                                                v-if="o.is_purchase"
+                                                class="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700 dark:bg-violet-950 dark:text-violet-300"
+                                            >
+                                                purchase
+                                            </span>
+                                            <span
+                                                class="rounded-full px-2 py-0.5 text-xs font-medium"
+                                                :class="o.is_billable
+                                                    ? 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300'
+                                                    : 'bg-neutral-100 text-neutral-500 dark:bg-neutral-900'"
+                                            >
+                                                {{ o.is_billable ? 'billable' : 'not billable' }}
+                                            </span>
+                                        </div>
+                                        <div class="mt-0.5 text-xs text-muted-foreground">
+                                            {{ o.quantity }} x {{ money(o.price) }}
+                                            <template v-if="o.supplier"> x {{ o.supplier }}</template>
+                                            <template v-if="o.received_at"> x received {{ o.received_at }}</template>
+                                            <template v-if="o.product">
+                                                x shelf: {{ o.product.available }} available
+                                                <template v-if="o.product.reserved_stock > 0"> ({{ o.product.reserved_stock }} reserved)</template>
+                                            </template>
+                                        </div>
                                     </div>
-                                    <div class="mt-0.5 text-xs text-muted-foreground">
-                                        {{ o.quantity }} × {{ money(o.price) }}
-                                        <template v-if="o.supplier"> · {{ o.supplier }}</template>
-                                    </div>
+                                    <div class="text-sm font-medium">{{ money(o.cost) }}</div>
                                 </div>
-                                <div class="text-sm font-medium">{{ money(o.cost) }}</div>
-                                <Button variant="ghost" size="icon" @click="removePart(o.id)">
-                                    <Trash2 class="h-4 w-4 text-muted-foreground" />
-                                </Button>
+                                <div class="mt-2 flex items-center gap-2">
+                                    <Button v-if="o.status === 'new' || o.status === 'shipped'" variant="outline" size="sm" class="h-7 text-xs" @click="receivePart(o.id)">
+                                        <CheckCircle2 class="mr-1 h-3.5 w-3.5" />
+                                        Receive
+                                    </Button>
+                                    <Button v-if="o.status === 'new' || o.status === 'shipped'" variant="ghost" size="sm" class="h-7 text-xs text-muted-foreground" @click="cancelPart(o.id)">
+                                        Cancel part
+                                    </Button>
+                                    <span v-else-if="o.status === 'received'" class="text-xs text-green-600 dark:text-green-400">Received - stock settled.</span>
+                                    <span v-else class="text-xs text-muted-foreground">Cancelled - not billable.</span>
+                                    <div class="flex-1"></div>
+                                    <Button variant="ghost" size="icon" class="h-7 w-7" @click="removePart(o.id)">
+                                        <Trash2 class="h-4 w-4 text-muted-foreground" />
+                                    </Button>
+                                </div>
                             </div>
 
+                            <div class="grid gap-2">
+                                <Label class="text-sm font-medium">
+                                    <Search class="mr-1 inline h-3.5 w-3.5" />
+                                    Find parts
+                                </Label>
+                                <Input
+                                    v-model="findQuery"
+                                    placeholder="Search supplier parts, e.g. iPhone 13 battery, SSD 1TB..."
+                                    @input="onFindInput"
+                                />
+                                <div v-if="findSearching" class="text-xs text-muted-foreground">Searching...</div>
+                                <p v-else-if="findFailure" class="text-xs text-amber-600 dark:text-amber-400">
+                                    {{ findFailure }}
+                                </p>
+                                <div v-else-if="findSearchedFor && findOffers.length === 0" class="text-xs text-muted-foreground">
+                                    No offers for "{{ findSearchedFor }}".
+                                </div>
+                                <ul v-else-if="findOffers.length > 0" class="space-y-2">
+                                    <li v-for="(offer, i) in findOffers" :key="i" class="flex items-start gap-3 rounded-md border p-2.5">
+                                        <img
+                                            v-if="offer.image"
+                                            :src="offer.image"
+                                            :alt="offer.name"
+                                            class="h-10 w-10 rounded-md object-cover"
+                                        />
+                                        <div class="min-w-0 flex-1">
+                                            <p class="truncate text-sm font-medium">{{ offer.name }}</p>
+                                            <p class="truncate text-xs text-muted-foreground">
+                                                <template v-if="offer.category">{{ offer.category }}</template>
+                                                <span v-if="offer.price != null" class="ml-2 text-green-600 dark:text-green-400">${{ offer.price.toFixed(2) }}</span>
+                                                <span v-else class="ml-2 italic">price on request</span>
+                                            </p>
+                                        </div>
+                                        <Button variant="outline" size="sm" class="h-7 shrink-0 text-xs" @click="addOffer(offer)">
+                                            <Plus class="mr-1 h-3.5 w-3.5" />
+                                            Add
+                                        </Button>
+                                    </li>
+                                </ul>
+                                <p class="text-xs text-muted-foreground">
+                                    Adds a purchase line to the ticket; receiving it restocks your shelf.
+                                </p>
+                            </div>
                             <Separator />
 
                             <form @submit.prevent="addPart" class="grid gap-3 sm:grid-cols-12">
-                                <div class="grid gap-1 sm:col-span-6">
-                                    <Label>Product</Label>
+                                <div class="grid gap-1 sm:col-span-5">
+                                    <Label>Product (own shelf)</Label>
                                     <Select v-model="partForm.product_id">
                                         <SelectTrigger class="w-full" :class="{ 'border-destructive': partForm.errors.product_id }">
-                                            <SelectValue placeholder="Choose from catalog…" />
+                                            <SelectValue placeholder="Choose from catalog (optional)" />
                                         </SelectTrigger>
                                         <SelectContent>
                                             <SelectItem v-for="p in products" :key="p.id" :value="p.id">
                                                 <SelectItemText>
-                                                    {{ p.name }}{{ p.sku ? ` (${p.sku})` : '' }} — {{ money(p.price) }} · {{ p.stock }} in stock
+                                                    {{ p.name }}{{ p.sku ? ` (${p.sku})` : '' }} - ${{ p.price.toFixed(2) }} - {{ p.available }} available
                                                 </SelectItemText>
                                             </SelectItem>
                                         </SelectContent>
                                     </Select>
                                     <InputError :message="partForm.errors.product_id" />
                                 </div>
-                                <div class="grid gap-1 sm:col-span-2">
+                                <div class="grid gap-1 sm:col-span-4">
+                                    <Label>Part name (supplier part)</Label>
+                                    <Input v-model="partForm.name" placeholder="e.g. iPhone 13 Screen (OLED)" :class="{ 'border-destructive': partForm.errors.name }" />
+                                    <InputError :message="partForm.errors.name" />
+                                </div>
+                                <div class="grid gap-1 sm:col-span-3">
+                                    <Label>Unit price</Label>
+                                    <Input v-model.number="partForm.price" type="number" step="0.01" min="0" placeholder="0.00" />
+                                </div>
+                                <div class="grid gap-1 sm:col-span-3">
                                     <Label>Qty</Label>
                                     <Input v-model.number="partForm.quantity" type="number" min="1" />
                                 </div>
-                                <div class="flex items-end gap-2 sm:col-span-4">
+                                <div class="grid gap-1 sm:col-span-4">
+                                    <Label class="flex items-center gap-2">
+                                        <Checkbox v-model="partForm.is_purchase" :true-value="true" :false-value="false" />
+                                        Purchasing from supplier (restocks shelf on receive)
+                                    </Label>
+                                </div>
+                                <div class="flex items-end gap-2 sm:col-span-5">
                                     <Button type="submit" size="sm" :disabled="partForm.processing">
                                         <Plus class="h-4 w-4" />
                                         Add part
@@ -574,12 +763,12 @@ const reasonForType = (type: string): string[] => {
                             <CardTitle><ClipboardCheck class="mr-2 inline h-4 w-4" />Testing &amp; QC</CardTitle>
                             <div class="text-sm font-medium" :class="checklistProgress.failed > 0 ? 'text-destructive' : 'text-muted-foreground'">
                                 {{ checklistProgress.passed }}/{{ checklistProgress.total }} passed
-                                <span v-if="checklistProgress.failed > 0"> · {{ checklistProgress.failed }} failed</span>
+                                <span v-if="checklistProgress.failed > 0"> Â· {{ checklistProgress.failed }} failed</span>
                             </div>
                         </CardHeader>
                         <CardContent class="space-y-4">
                             <div v-if="checklist_items.length === 0" class="py-4 text-center text-sm text-muted-foreground">
-                                No checklist items yet — record the device condition up front, then the QC sign-off after the repair.
+                                No checklist items yet â€” record the device condition up front, then the QC sign-off after the repair.
                             </div>
 
                             <div v-for="group in checklistGroups" :key="group.key" class="space-y-2">
@@ -595,7 +784,7 @@ const reasonForType = (type: string): string[] => {
                                         </div>
                                         <div v-if="i.note" class="mt-0.5 text-xs text-muted-foreground">{{ i.note }}</div>
                                         <div v-if="i.checked_by" class="mt-0.5 text-xs text-muted-foreground">
-                                            by {{ i.checked_by }}<template v-if="i.checked_at"> · {{ i.checked_at }}</template>
+                                            by {{ i.checked_by }}<template v-if="i.checked_at"> Â· {{ i.checked_at }}</template>
                                         </div>
                                     </div>
                                     <Select :model-value="i.status" @update:model-value="(v: string) => setChecklistStatus(i, v)">
@@ -721,7 +910,7 @@ const reasonForType = (type: string): string[] => {
                                 <h3 class="text-sm font-medium">Adjustments</h3>
                                 <p v-if="invoice.adjustments.length === 0" class="text-xs text-muted-foreground">No adjustments.</p>
                                 <div v-for="a in invoice.adjustments" :key="a.id" class="flex items-center gap-2 rounded-lg border p-2 text-sm">
-                                    <span class="flex-1 capitalize">{{ a.type }} · {{ pretty(a.reason) }}</span>
+                                    <span class="flex-1 capitalize">{{ a.type }} Â· {{ pretty(a.reason) }}</span>
                                     <span>{{ a.percentage !== null ? `${a.percentage}%` : money(a.amount ?? 0) }}</span>
                                     <Button variant="ghost" size="icon" @click="removeAdjustment(a.id)">
                                         <Trash2 class="h-3.5 w-3.5 text-muted-foreground" />
@@ -782,8 +971,8 @@ const reasonForType = (type: string): string[] => {
                                     <Banknote class="h-4 w-4 text-muted-foreground" />
                                     <span class="flex-1 capitalize">
                                         <span :class="tx.type === 'refund' ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'">{{ tx.type }}</span>
-                                        · {{ tx.method }}
-                                        <span v-if="tx.note" class="text-muted-foreground"> · {{ tx.note }}</span>
+                                        Â· {{ tx.method }}
+                                        <span v-if="tx.note" class="text-muted-foreground"> Â· {{ tx.note }}</span>
                                     </span>
                                     <span class="font-medium">{{ money(tx.amount) }}</span>
                                     <Button variant="ghost" size="icon" @click="removePayment(tx.id)">

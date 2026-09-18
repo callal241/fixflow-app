@@ -276,5 +276,125 @@ curl_close($ch);
 check('GET /suppliers/search logged out is gated (401/redirect)',
     in_array($gc, [302, 401], true), "(http $gc)");
 
+echo "\n=== 6) PARTS (milestone 4: find parts / receive / cancel / reserved stock) ===\n";
+
+// 6a) The ticket show payload now carries the reserved/purchase fields.
+[$st, $bd, , $jar] = grab('GET', '/tickets/' . $demoTicketId, $jar);
+$tp = props($bd);
+$firstProduct = $tp['products'][0] ?? null;
+check('ticket show exposes product available + reserved_stock',
+    $st == 200 && $firstProduct
+    && array_key_exists('available', $firstProduct)
+    && array_key_exists('reserved_stock', $firstProduct)
+    && array_key_exists('stock', $firstProduct),
+    "(http $st, product0=" . json_encode($firstProduct) . ")");
+check('ticket show orders carry is_purchase + received_at',
+    $st == 200 && (function () use ($tp) {
+        if (empty($tp['orders'])) {
+            // no seeded orders on the ticket; verify the shape via a fresh one below,
+            // so treat "orders key exists" as the pass condition here.
+            return array_key_exists('orders', $tp);
+        }
+        $o = $tp['orders'][0];
+        return array_key_exists('is_purchase', $o) && array_key_exists('received_at', $o);
+    })(),
+    "(orders=" . count($tp['orders'] ?? []) . ")");
+
+// 6b) Find parts: a free-form supplier part (no catalog product, not a purchase).
+[, , , $jar] = grab('POST', '/tickets/' . $demoTicketId . '/orders', $jar, [
+    'name' => 'Smoke free-form part', 'supplier' => 'Smoke Supplier',
+    'quantity' => 1, 'price' => '9.99', 'is_billable' => '1',
+], true);
+[$st, $bd, , $jar] = grab('GET', '/tickets/' . $demoTicketId, $jar);
+$tp = props($bd);
+$freeOrder = null;
+foreach ($tp['orders'] as $o) {
+    if (($o['name'] ?? '') === 'Smoke free-form part' && !($o['is_purchase'] ?? false)) { $freeOrder = $o; break; }
+}
+check('find parts: free-form supplier part created (status new, billable)',
+    $st == 200 && $freeOrder && $freeOrder['status'] === 'new'
+    && $freeOrder['is_billable'] === true && $freeOrder['product_id'] === null,
+    "(order=" . json_encode($freeOrder) . ")");
+
+// 6c) Find parts: a purchase line (is_purchase true) is stored as a purchase.
+[, , , $jar] = grab('POST', '/tickets/' . $demoTicketId . '/orders', $jar, [
+    'name' => 'Smoke purchase part', 'supplier' => 'Smoke Supplier',
+    'quantity' => 1, 'price' => '14.50', 'is_billable' => '1', 'is_purchase' => '1',
+], true);
+[$st, $bd, , $jar] = grab('GET', '/tickets/' . $demoTicketId, $jar);
+$tp = props($bd);
+$buyOrder = null;
+foreach ($tp['orders'] as $o) {
+    if (($o['name'] ?? '') === 'Smoke purchase part') { $buyOrder = $o; break; }
+}
+check('find parts: purchase line stored with is_purchase=true',
+    $st == 200 && $buyOrder && $buyOrder['is_purchase'] === true && $buyOrder['status'] === 'new',
+    "(order=" . json_encode($buyOrder) . ")");
+
+// 6d) Cancel the free-form part -> becomes non-billable + cancelled.
+if ($freeOrder) {
+    grab('PATCH', '/tickets/' . $demoTicketId . '/orders/' . $freeOrder['id'] . '/cancel', $jar, [], true);
+    [$st, $bd, , $jar] = grab('GET', '/tickets/' . $demoTicketId, $jar);
+    $c = null;
+    foreach (props($bd)['orders'] as $o) { if ($o['id'] === $freeOrder['id']) { $c = $o; break; } }
+    check('cancel part: status cancelled + non-billable',
+        $c && $c['status'] === 'cancelled' && $c['is_billable'] === false,
+        "(order=" . json_encode($c) . ")");
+    grab('DELETE', '/tickets/' . $demoTicketId . '/orders/' . $freeOrder['id'], $jar, [], true);
+} else {
+    check('cancel part (skipped: free-form part not found)', true, '');
+}
+
+// 6e) Receive the purchase part -> status received + received_at stamped.
+if ($buyOrder) {
+    grab('PATCH', '/tickets/' . $demoTicketId . '/orders/' . $buyOrder['id'] . '/receive', $jar, [], true);
+    [$st, $bd, , $jar] = grab('GET', '/tickets/' . $demoTicketId, $jar);
+    $r = null;
+    foreach (props($bd)['orders'] as $o) { if ($o['id'] === $buyOrder['id']) { $r = $o; break; } }
+    check('receive part: status received + received_at set',
+        $r && $r['status'] === 'received' && !empty($r['received_at']),
+        "(order=" . json_encode($r) . ")");
+    grab('DELETE', '/tickets/' . $demoTicketId . '/orders/' . $buyOrder['id'], $jar, [], true);
+} else {
+    check('receive part (skipped: purchase part not found)', true, '');
+}
+
+// 6f) Own-stock part reserves stock: create (reserved+1) then delete (reserved back).
+if ($firstProduct) {
+    $pid = $firstProduct['id'];
+    $reserved0 = (int) $firstProduct['reserved_stock'];
+    $avail0 = (int) $firstProduct['available'];
+    if ($avail0 >= 1) {
+        grab('POST', '/tickets/' . $demoTicketId . '/orders', $jar, [
+            'product_id' => $pid, 'quantity' => 1, 'is_billable' => '1',
+        ], true);
+        [$st, $bd, , $jar] = grab('GET', '/tickets/' . $demoTicketId, $jar);
+        $tp = props($bd);
+        $prodAfter = null; $ownOrder = null;
+        foreach ($tp['products'] as $pp) { if ($pp['id'] === $pid) { $prodAfter = $pp; break; } }
+        foreach ($tp['orders'] as $o) {
+            if (($o['product_id'] ?? null) === $pid && $o['status'] === 'new' && !($o['is_purchase'] ?? false)) { $ownOrder = $o; break; }
+        }
+        $reservedAfter = $prodAfter ? (int) $prodAfter['reserved_stock'] : null;
+        check('own-stock part reserves stock (reserved_stock +1, on-hand holds)',
+            $prodAfter && $reservedAfter === $reserved0 + 1 && (int) $prodAfter['stock'] === (int) $firstProduct['stock'],
+            "(reserved0=$reserved0 reservedAfter=" . var_export($reservedAfter, true) . " stock=" . $prodAfter['stock'] . ")");
+        // delete the line: its reservation is released back.
+        if ($ownOrder) {
+            grab('DELETE', '/tickets/' . $demoTicketId . '/orders/' . $ownOrder['id'], $jar, [], true);
+            [$st, $bd, , $jar] = grab('GET', '/tickets/' . $demoTicketId, $jar);
+            $prodBack = null;
+            foreach (props($bd)['products'] as $pp) { if ($pp['id'] === $pid) { $prodBack = $pp; break; } }
+            check('removing the part releases its reservation (reserved_stock back to ' . $reserved0 . ')',
+                $prodBack && (int) $prodBack['reserved_stock'] === $reserved0,
+                "(reservedAfterDelete=" . ($prodBack ? $prodBack['reserved_stock'] : '?') . ")");
+        }
+    } else {
+        check('own-stock reservation (skipped: no available stock on demo product)', true, "(available=$avail0)");
+    }
+} else {
+    check('own-stock reservation (skipped: no products on demo ticket)', true, '');
+}
+
 echo "\nRESULT: $pass passed, $fail failed\n";
 exit($fail > 0 ? 1 : 0);

@@ -6,7 +6,9 @@ use App\Http\Controllers\ChecklistItemController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\OrderCancelController;
 use App\Http\Controllers\OrderController;
+use App\Http\Controllers\OrderReceiveController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SupplierController;
@@ -59,6 +61,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('tickets/{ticket}', [TicketController::class, 'show'])->name('tickets.show');
     Route::put('tickets/{ticket}', [TicketController::class, 'update'])->name('tickets.update');
     Route::post('tickets/{ticket}/orders', [OrderController::class, 'store'])->name('tickets.orders.store');
+    Route::patch('tickets/{ticket}/orders/{order}/receive', [OrderReceiveController::class, 'index'])->name('tickets.orders.receive');
+    Route::patch('tickets/{ticket}/orders/{order}/cancel', [OrderCancelController::class, 'index'])->name('tickets.orders.cancel');
     Route::delete('tickets/{ticket}/orders/{order}', [OrderController::class, 'destroy'])->name('tickets.orders.destroy');
 
     Route::post('tickets/{ticket}/tasks', [TaskController::class, 'store'])->name('tickets.tasks.store');
