@@ -69,7 +69,7 @@ class InvoiceController extends Controller
             'ticket.device:id,customer_id',
             'ticket.device.customer:id,name,company,phone,email',
             'transactions:id,invoice_id,amount,type,method,note,created_at',
-            'adjustments:id,type,amount,percentage,note',
+            'adjustments:id,invoice_id,type,amount,percentage,note',
         ]);
 
         return Inertia::render('Invoices/Show', [

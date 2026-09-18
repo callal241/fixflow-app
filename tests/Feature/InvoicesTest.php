@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\TaskType;
+use App\Models\Adjustment;
 use App\Models\Business;
 use App\Models\Customer;
 use App\Models\Device;
@@ -66,6 +67,10 @@ test('the invoice detail renders the billable line items and totals', function (
         ->payment(40)
         ->create(['business_id' => $this->business->id]);
 
+    Adjustment::factory()->forInvoice($invoice)
+        ->withAmount(25)
+        ->create(['business_id' => $this->business->id, 'note' => 'Screen fee']);
+
     $this->actingAs($this->user)
         ->get(route('invoices.show', $invoice))
         ->assertOk()
@@ -76,6 +81,8 @@ test('the invoice detail renders the billable line items and totals', function (
             ->where('invoice.customer.name', 'Bill Customer')
             ->where('invoice.tasks.0.note', 'Screen replacement')
             ->where('invoice.tasks.0.cost', fn ($cost) => abs($cost - 100.0) < 0.001)
+            ->where('invoice.adjustments.0.note', 'Screen fee')
+            ->where('invoice.adjustments.0.amount', fn ($a) => abs($a - 25.0) < 0.001)
             ->where('invoice.transactions', fn ($txs) => $txs->count() === 1
                 && abs($txs->first()['amount'] - 40.0) < 0.001
                 && $txs->first()['type'] === 'payment'));

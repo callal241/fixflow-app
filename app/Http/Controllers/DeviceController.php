@@ -87,7 +87,7 @@ class DeviceController extends Controller
     {
         abort_unless($device->business_id === $request->user()->business_id, 403);
 
-        $device->load(['customer:id,name,company,phone', 'tickets.device.customer.id']);
+        $device->load(['customer:id,name,company,phone', 'tickets']);
 
         return Inertia::render('Devices/Show', [
             'device' => [

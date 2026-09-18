@@ -84,9 +84,9 @@ class Device extends Model
     // ACCESSORS ///////////////////////////////////////////////////////////////////////////////////
 
     /**
-     * Get the ticket progress percentage.
+     * Get the device's ticket progress percentage.
      */
-    protected function ticketProgress(): Attribute
+    protected function deviceProgress(): Attribute
     {
         return Progress::using('pending_tickets_count', 'complete_tickets_count');
     }
